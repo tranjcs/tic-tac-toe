@@ -24,6 +24,8 @@ Open http://localhost:3000 in two (or more) browser tabs. Use `npm run dev` to r
 | ----------------- | ------- | -------------------------------------------- |
 | `PORT`            | `3000`  | HTTP port                                    |
 | `RESULT_DELAY_MS` | `3000`  | How long a finished game's result is shown   |
+| `TURN_TIMEOUT_MS` | `15000` | How long a player has to move before forfeiting |
+| `IDLE_TIMEOUT_MS` | `1200000` | Disconnect a client that reports no activity for this long (20 min) |
 
 ## How it works
 
@@ -40,6 +42,10 @@ A name is kept per browser tab, so a tab that reconnects (for example after bein
 When a game ends, the result is shown briefly. The winner stays on and the loser goes to
 the back of the line (on a draw, both go to the back). If a player disconnects mid-game,
 the next person in line steps in right away.
+
+Each turn has a 15-second limit, shown as a countdown to everyone. A player who runs out of
+time loses the game and goes to the back of the line. A player who keeps timing out without
+making a move for 15 minutes is disconnected (they can click to rejoin).
 
 The server is authoritative: it validates every move, so clients can't cheat.
 
@@ -95,8 +101,15 @@ Why the settings are what they are:
 Cloud Run bills for the whole time a WebSocket is open. Roughly 50 connected hours a month are free,
 then it's about $0.09 per hour (us-central1 list prices; check the
 [pricing page](https://cloud.google.com/run/pricing)). To keep this near $0, the client disconnects
-when its tab has been hidden for 60 seconds and reconnects when it's visible again. A player who hides the tab
-mid-game for that long forfeits. Worst case, a connection held open all month costs about $60.
+when its tab has been hidden for 60 seconds and reconnects when it's visible again. It also disconnects
+a visible tab after 15 minutes with no mouse, touch or keyboard activity, and the server disconnects a
+player who has timed out on every turn for 15 minutes, so a tab left open on an unattended screen
+doesn't keep the server running. As a backstop, the server also disconnects any client that hasn't reported
+activity for 20 minutes, which covers old versions of the page still open in someone's browser. Worst case, a connection held open all month costs about $60.
+
+Each deploy stores a new image in Artifact Registry. The deploy and setup scripts apply a cleanup
+policy (`scripts/artifact-cleanup-policy.json`) that keeps the 5 newest images and deletes older
+ones after 7 days.
 
 Set a budget alert as a safety net: in the Google Cloud console, go to **Billing → Budgets & alerts**
 and create a budget of a few dollars with email alerts.

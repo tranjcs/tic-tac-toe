@@ -17,6 +17,7 @@ const Status = Object.freeze({
 const Events = Object.freeze({
   STATE: 'state',
   MOVE: 'move',
+  ACTIVE: 'active', // client heartbeat: someone is using this tab
 });
 
 module.exports = { Mark, DRAW, Status, Events };

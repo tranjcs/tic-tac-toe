@@ -4,7 +4,7 @@
 (() => {
   // Keep in sync with src/constants.js.
   const Status = { WAITING: 'waiting', PLAYING: 'playing', IN_LINE: 'in-line' };
-  const Events = { STATE: 'state', MOVE: 'move' };
+  const Events = { STATE: 'state', MOVE: 'move', ACTIVE: 'active' };
   const DRAW = 'draw';
   const BOARD_SIZE = 9;
   const NAME_KEY = 'tic-tac-toe:name';
@@ -36,6 +36,7 @@
   const matchupEl = el('matchup');
   const statusEl = el('status');
   const detailEl = el('detail');
+  const timerEl = el('timer');
   const lineListEl = el('line-list');
   const lineEmptyEl = el('line-empty');
   const spectateOverlayEl = el('spectate-overlay');
@@ -77,9 +78,41 @@
   function resultText(state) {
     if (state.result === DRAW) return "It's a draw!";
     if (state.status === Status.PLAYING) {
-      return state.result === state.mark ? 'You win! 🎉' : 'You lose.';
+      if (state.timedOut === state.mark) return 'Out of time — you lose.';
+      const won = state.timedOut ? 'Opponent ran out of time — you win! 🎉' : 'You win! 🎉';
+      return state.result === state.mark ? won : 'You lose.';
+    }
+    if (state.timedOut) {
+      return `${state.players[state.timedOut]} ran out of time — ${state.players[state.result]} wins!`;
     }
     return `${state.players[state.result]} wins!`;
+  }
+
+  // Turn countdown. The server sends the time left (not a timestamp) so a wrong
+  // client clock doesn't matter; it enforces the limit itself.
+  const TURN_URGENT_SECONDS = 5;
+  let turnTicker = null;
+
+  function stopCountdown() {
+    clearInterval(turnTicker);
+    turnTicker = null;
+    timerEl.hidden = true;
+  }
+
+  function startCountdown(state) {
+    stopCountdown();
+    if (typeof state.turnRemainingMs !== 'number') return;
+    const deadline = performance.now() + state.turnRemainingMs;
+    const mine = state.status === Status.PLAYING && state.turn === state.mark;
+    const whose = mine ? 'You have' : `${state.players[state.turn]} has`;
+    const tick = () => {
+      const seconds = Math.max(0, Math.ceil((deadline - performance.now()) / 1000));
+      timerEl.textContent = `⏱ ${whose} ${seconds}s to move`;
+      timerEl.classList.toggle('timer--urgent', seconds <= TURN_URGENT_SECONDS);
+    };
+    tick();
+    timerEl.hidden = false;
+    turnTicker = setInterval(tick, 250);
   }
 
   function describe(state) {
@@ -146,6 +179,7 @@
     boardEl.classList.toggle('board--inactive', state.status === Status.WAITING);
     document.body.classList.toggle('my-turn', canMove);
     spectateOverlayEl.hidden = state.status !== Status.IN_LINE;
+    startCountdown(state);
     renderOutcome(state);
 
     renderMatchup(state);
@@ -156,12 +190,23 @@
   }
 
   socket.on(Events.STATE, render);
+  // Why we disconnected ourselves, or null if we didn't.
+  let pausedFor = null;
+  const PAUSED_TEXT = {
+    hidden: 'Paused — tab inactive',
+    idle: 'Paused — no activity. Click anywhere to rejoin.',
+    kicked: 'Disconnected for inactivity. Click anywhere to rejoin.',
+  };
+
   socket.on('disconnect', (reason) => {
-    // 'io client disconnect' means we paused it ourselves (see idle handling below).
-    statusEl.textContent = reason === 'io client disconnect'
-      ? 'Paused — tab inactive'
+    // The server only disconnects us for inactivity (no activity reported, or timing out
+    // turn after turn). Socket.IO doesn't reconnect by itself then; wait for the player.
+    if (reason === 'io server disconnect') pausedFor = 'kicked';
+    statusEl.textContent = pausedFor
+      ? PAUSED_TEXT[pausedFor]
       : 'Disconnected — reconnecting…';
     detailEl.textContent = '';
+    stopCountdown();
     cells.forEach((cell) => { cell.disabled = true; });
     document.body.classList.remove('my-turn', 'game-won', 'game-lost');
     spectateOverlayEl.hidden = true;
@@ -172,19 +217,63 @@
     lineEmptyEl.hidden = true;
   });
 
-  // Release the connection when the tab stays hidden, so an idle tab doesn't
-  // hold a seat in line (or keep the server running and billed). Rejoins on return.
-  const IDLE_DISCONNECT_MS = 60 * 1000;
-  let idleTimer = null;
+  // An open connection keeps the server running (and billed), and holds a seat in
+  // line, so let go of it when nobody is there. Rejoin when they come back.
+  function pause(reason) {
+    if (socket.disconnected) return;
+    pausedFor = reason;
+    socket.disconnect();
+  }
+
+  function resume() {
+    if (!pausedFor) return;
+    pausedFor = null;
+    statusEl.textContent = 'Reconnecting…';
+    socket.connect();
+  }
+
+  // 1) Tab hidden for a minute.
+  const HIDDEN_DISCONNECT_MS = 60 * 1000;
+  let hiddenTimer = null;
 
   document.addEventListener('visibilitychange', () => {
-    clearTimeout(idleTimer);
-    idleTimer = null;
+    clearTimeout(hiddenTimer);
+    hiddenTimer = null;
     if (document.visibilityState === 'hidden') {
-      idleTimer = setTimeout(() => socket.disconnect(), IDLE_DISCONNECT_MS);
-    } else if (socket.disconnected) {
-      statusEl.textContent = 'Reconnecting…';
-      socket.connect();
+      hiddenTimer = setTimeout(() => pause('hidden'), HIDDEN_DISCONNECT_MS);
+    } else {
+      noteActivity();
+      if (pausedFor === 'hidden') resume();
     }
   });
+
+  // 2) Tab visible but untouched for a while (left open on a screen nobody is using).
+  const IDLE_DISCONNECT_MS = 15 * 60 * 1000;
+  const IDLE_CHECK_MS = 15 * 1000;
+  let lastActivity = Date.now();
+
+  // Tell the server someone is here, at most once a minute; it disconnects clients
+  // that stay quiet (see src/app.js).
+  const ACTIVE_REPORT_MS = 60 * 1000;
+  let lastReported = 0;
+
+  function noteActivity() {
+    lastActivity = Date.now();
+    if (socket.connected && lastActivity - lastReported >= ACTIVE_REPORT_MS) {
+      lastReported = lastActivity;
+      socket.emit(Events.ACTIVE);
+    }
+  }
+
+  ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll'].forEach((type) => {
+    window.addEventListener(type, noteActivity, { passive: true });
+  });
+  // Rejoining takes a deliberate click or key press, not a stray mouse nudge.
+  ['pointerdown', 'keydown'].forEach((type) => {
+    window.addEventListener(type, () => { if (pausedFor === 'idle' || pausedFor === 'kicked') resume(); });
+  });
+
+  setInterval(() => {
+    if (Date.now() - lastActivity >= IDLE_DISCONNECT_MS) pause('idle');
+  }, IDLE_CHECK_MS);
 })();
