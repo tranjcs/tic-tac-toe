@@ -41,6 +41,8 @@ jobs:
     env:
       PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       REGION: ${{ secrets.GCP_REGION || 'us-central1' }}
+      # Optional. A Measurement ID is public, so it's an environment variable, not a secret.
+      GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
     steps:
       - name: Check configuration
         env:

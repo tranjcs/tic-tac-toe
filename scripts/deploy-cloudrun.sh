@@ -6,6 +6,9 @@
 #
 # Deploy-only (used by CI, which builds and pushes the image itself):
 #   IMAGE=<region>-docker.pkg.dev/<project>/tic-tac-toe/app:<tag> PROJECT_ID=my-project ./scripts/deploy-cloudrun.sh
+#
+# Set GA_MEASUREMENT_ID=G-XXXXXXXXXX to turn on Google Analytics. When unset, the
+# service keeps whatever value it already has.
 set -euo pipefail
 
 : "${PROJECT_ID:?Set PROJECT_ID to your Google Cloud project ID}"
@@ -40,6 +43,11 @@ fi
 
 # All game state is in memory, so exactly one instance must run (--max-instances=1).
 # Fractional CPU forces concurrency=1 on Cloud Run, so 1 vCPU is the minimum that works.
+EXTRA_ARGS=()
+if [[ -n "${GA_MEASUREMENT_ID:-}" ]]; then
+  EXTRA_ARGS+=(--update-env-vars "GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID}")
+fi
+
 echo "==> Deploying ${IMAGE} to ${SERVICE}"
 gcloud run deploy "$SERVICE" \
   --project "$PROJECT_ID" \
@@ -52,6 +60,7 @@ gcloud run deploy "$SERVICE" \
   --max-instances 1 \
   --concurrency 1000 \
   --timeout 3600 \
+  ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} \
   --quiet
 
 echo "==> Done"

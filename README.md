@@ -24,6 +24,7 @@ Open http://localhost:3000 in two (or more) browser tabs. Use `npm run dev` to r
 | ----------------- | ------- | -------------------------------------------- |
 | `PORT`            | `3000`  | HTTP port                                    |
 | `RESULT_DELAY_MS` | `3000`  | How long a finished game's result is shown   |
+| `GA_MEASUREMENT_ID` | (none) | Google Analytics 4 ID (`G-XXXXXXXXXX`); analytics is off when unset |
 
 ## How it works
 
@@ -43,6 +44,67 @@ the next person in line steps in right away.
 
 The server is authoritative: it validates every move, so clients can't cheat.
 
+## Analytics
+
+The game reports to Google Analytics 4 when `GA_MEASUREMENT_ID` is set. Without it (local runs,
+tests) no analytics script loads and nothing is sent.
+
+**Collected automatically by GA4:** page views, sessions, device category, operating system, browser,
+screen resolution, language, country/region (approximate, from the IP address, which GA4 doesn't store),
+and the referring site. The game adds the **viewport size** (`viewport_size`, e.g. `390x844`) to the page view.
+
+**Game events** (sent by each player's browser; spectators send none):
+
+| Event           | When                                           | Parameters |
+| --------------- | ---------------------------------------------- | ---------- |
+| `match_found`   | A waiting player gets into a game              | `wait_sec`, `came_from` (`waiting` / `in_line`) |
+| `game_start`    | A game starts for this player                  | `mark` |
+| `move`          | This player makes a move                       | `cell` (0-8), `cell_type` (`center` / `corner` / `edge`), `move_number`, `mark` |
+| `game_end`      | A game this player was in finishes             | `outcome` (`win` / `loss` / `draw`), `mark`, `total_moves`, `duration_sec`, `opening_move` |
+| `game_complete` | Once per finished game (sent by the X player)  | `result` (`x_win` / `o_win` / `draw`), `opening_move`, `opening_cell`, `total_moves`, `duration_sec` |
+| `game_abandon`  | A game ends without a result                   | `reason` (`opponent_left` / `left` / `idle` / `disconnected`), `mark`, `moves_made`, `duration_sec` |
+
+Use `game_complete` for per-game numbers (it's sent once per game) and `game_end` / `game_start`
+for per-player and per-device numbers. An abandoned game is usually reported twice: by the
+player who left (`left`, `idle` or `disconnected`) and by the one who stayed (`opponent_left`).
+
+### Setup
+
+1. In [Google Analytics](https://analytics.google.com), create a GA4 property and a **Web** data stream
+   for `https://ttt.code-brew.app`. Copy its Measurement ID (`G-…`).
+2. Set it on the service: run the deploy script with `GA_MEASUREMENT_ID=G-…`, or for the GitHub
+   workflow add a `GA_MEASUREMENT_ID` **environment variable** (not a secret; the ID is public) to the
+   `dev` environment. The service keeps the value across later deploys.
+3. In GA, **Admin → Custom definitions**, register these event-scoped **custom dimensions**:
+   `viewport_size`, `outcome`, `result`, `opening_move`, `cell_type`, `reason`, `came_from`, `mark`,
+   and these **custom metrics**: `duration_sec` (unit: seconds), `wait_sec` (seconds), `total_moves`, `moves_made`.
+   Data is only broken down by a parameter from the moment it's registered.
+
+### Answering common questions
+
+Build these in **Explore** (free-form reports). Device category, browser, OS and so on are standard dimensions.
+
+| Question | How |
+| -------- | --- |
+| How many games were played today? | `game_complete` event count, date = today |
+| What percentage of games end in a draw? | `game_complete` count with `result` = `draw` ÷ all `game_complete` |
+| Wins / losses / draws | `game_end` count by `outcome` (or `game_complete` by `result` per game) |
+| Which opening move is most popular? | `game_complete` count by `opening_move` (or `opening_cell` for the exact square) |
+| Which moves do players make? | `move` count by `cell_type` |
+| Average game duration | Average `duration_sec` on `game_complete` |
+| Average matchmaking wait | Average `wait_sec` on `match_found` |
+| Abandonment | `game_abandon` count by `reason`, with `moves_made` ("left after 3 moves") |
+| Game completion rate by device | `game_end` count ÷ `game_start` count, by device category |
+| Average games per session by device | `game_end` count ÷ sessions, by device category |
+
+### Consent
+
+Google Consent Mode is on. For visitors in the EEA, the UK and Switzerland, analytics storage
+starts as **denied**: GA sends cookieless pings and sets no cookies, and Google models the missing
+data. Elsewhere analytics cookies are used. Advertising storage and personalization are denied everywhere.
+There's no consent banner, so EU/UK numbers will be less precise. Mention Google Analytics in your
+privacy notice.
+
 ## Project structure
 
 ```
@@ -60,7 +122,8 @@ scripts/
 public/
   index.html     Game page
   css/style.css  Styles (light and dark mode)
-  js/client.js   Browser client
+  js/client.js   Browser client (also reports game events to analytics)
+  js/analytics.js  Google Analytics loader (off unless GA_MEASUREMENT_ID is set)
 test/
   game.test.js   Game rules unit tests
   lobby.test.js  Line/rotation unit tests (mocked timers)

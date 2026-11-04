@@ -13,11 +13,18 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
  * Creates the HTTP + Socket.IO server without starting it.
  * @param {object} options
  * @param {number} options.resultDelayMs
+ * @param {string|null} [options.gaMeasurementId] - GA4 ID; analytics is off when null
  * @returns {{ server: http.Server, io: Server, lobby: Lobby }}
  */
-function createApp({ resultDelayMs }) {
+function createApp({ resultDelayMs, gaMeasurementId = null }) {
   const app = express();
   app.disable('x-powered-by');
+
+  // Runtime settings for the browser (public/js/analytics.js reads them).
+  const clientConfig = `window.TTT_CONFIG = ${JSON.stringify({ gaMeasurementId })};\n`;
+  app.get('/config.js', (req, res) => {
+    res.type('text/javascript').set('Cache-Control', 'no-cache').send(clientConfig);
+  });
   app.use(express.static(PUBLIC_DIR));
 
   const server = http.createServer(app);

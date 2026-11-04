@@ -32,7 +32,7 @@ describe('getResult', () => {
 describe('Game', () => {
   it('starts empty with X to move', () => {
     const game = new Game();
-    assert.deepEqual(game.toJSON(), { board: Array(9).fill(null), turn: X, result: null });
+    assert.deepEqual(game.toJSON(), { board: Array(9).fill(null), turn: X, result: null, moves: [] });
   });
 
   it('alternates turns', () => {
@@ -76,5 +76,17 @@ describe('Game', () => {
     const game = new Game();
     game.toJSON().board[0] = X;
     assert.equal(game.board[0], null);
+  });
+
+  it('records accepted moves in order', () => {
+    const game = new Game();
+    game.play(X, 4);
+    game.play(X, 0); // out of turn
+    game.play(O, 4); // occupied
+    game.play(O, 0);
+    assert.deepEqual(game.moves, [4, 0]);
+    assert.deepEqual(game.toJSON().moves, [4, 0]);
+    game.toJSON().moves.push(8);
+    assert.deepEqual(game.moves, [4, 0], 'toJSON returns a copy');
   });
 });

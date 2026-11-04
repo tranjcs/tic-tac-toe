@@ -3,7 +3,10 @@
 const config = require('./config');
 const { createApp } = require('./app');
 
-const { server, io } = createApp({ resultDelayMs: config.resultDelayMs });
+const { server, io } = createApp({
+  resultDelayMs: config.resultDelayMs,
+  gaMeasurementId: config.gaMeasurementId,
+});
 
 server.listen(config.port, () => {
   console.log(`Tic-tac-toe running on http://localhost:${config.port}`);
