@@ -242,6 +242,8 @@
           total_moves: moves.length,
           duration_sec: duration,
           timed_out: Boolean(state.timedOut),
+          // The whole game, e.g. "4,0,3,1,5": cells 0-8 row by row from the top left, X first.
+          moves: moves.join(','),
         });
       }
     }

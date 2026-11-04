@@ -67,7 +67,7 @@ and the referring site. The game adds the **viewport size** (`viewport_size`, e.
 | `game_start`    | A game starts for this player                  | `mark` |
 | `move`          | This player makes a move                       | `cell_type` (`center` / `corner` / `edge`), `mark` |
 | `game_end`      | A game this player was in finishes             | `outcome` (`win` / `loss` / `draw`), `mark`, `total_moves`, `duration_sec`, `opening_move`, `timed_out` (a player ran out of time) |
-| `game_complete` | Once per finished game (sent by the X player)  | `result` (`x_win` / `o_win` / `draw`), `opening_move`, `total_moves`, `duration_sec`, `timed_out` |
+| `game_complete` | Once per finished game (sent by the X player)  | `result` (`x_win` / `o_win` / `draw`), `opening_move`, `total_moves`, `duration_sec`, `timed_out`, `moves` (the whole game, see below) |
 | `game_abandon`  | A game ends without a result                   | `reason` (`opponent_left` / `left` / `hidden` / `idle` / `kicked` / `disconnected`), `mark`, `moves_made`, `duration_sec` |
 
 Use `game_complete` for per-game numbers (it's sent once per game) and `game_end` / `game_start`
@@ -105,6 +105,24 @@ Build these in **Explore** (free-form reports). Device category, browser, OS and
 | Abandonment | `game_abandon` count by `reason`, with `moves_made` ("left after 3 moves") |
 | Game completion rate by device | `game_end` count ÷ `game_start` count, by device category |
 | Average games per session by device | `game_end` count ÷ sessions, by device category |
+| Most common game lines, best replies, missed wins | Query `moves` on `game_complete` in BigQuery (see below) |
+
+### Raw data (BigQuery)
+
+`moves` on `game_complete` records the whole game as cell numbers in play order, X first,
+for example `4,0,3,1,5`. Cells are numbered 0-8, row by row from the top left:
+
+```
+0 | 1 | 2
+3 | 4 | 5
+6 | 7 | 8
+```
+
+With so many different values, GA's own reports lump `moves` into "(other)", so analyze it with the free
+BigQuery export instead: **Admin → Product links → BigQuery links → Link**, pick your Google Cloud
+project, and choose a daily export. GA then copies every raw event (with all its parameters) into
+BigQuery from that day on, where you can rebuild every game and ask any question with SQL. The export
+isn't backfilled, so turn it on early. Storage for a game this size fits in BigQuery's free tier.
 
 ### Consent
 
