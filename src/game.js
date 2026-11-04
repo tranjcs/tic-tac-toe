@@ -32,6 +32,8 @@ class Game {
     this.result = null;
     /** @type {number[]} cells played, in order */
     this.moves = [];
+    /** @type {string|null} mark of the player who ran out of time, if any */
+    this.timedOut = null;
   }
 
   get isOver() {
@@ -58,8 +60,25 @@ class Game {
     return true;
   }
 
+  /**
+   * Ends the game because the player to move ran out of time; the opponent wins.
+   * @returns {boolean} whether the game was ended
+   */
+  timeOut() {
+    if (this.isOver) return false;
+    this.timedOut = this.turn;
+    this.result = this.turn === Mark.X ? Mark.O : Mark.X;
+    return true;
+  }
+
   toJSON() {
-    return { board: [...this.board], turn: this.turn, result: this.result, moves: [...this.moves] };
+    return {
+      board: [...this.board],
+      turn: this.turn,
+      result: this.result,
+      timedOut: this.timedOut,
+      moves: [...this.moves],
+    };
   }
 }
 

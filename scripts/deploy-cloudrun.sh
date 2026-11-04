@@ -37,6 +37,13 @@ if [[ -z "${IMAGE:-}" ]]; then
       --description "Tic-tac-toe images"
   fi
 
+  # Keep only the 5 newest images (each deploy adds one) so storage doesn't grow forever.
+  # Needs repository admin rights, so it runs here and not in CI.
+  echo "==> Applying image cleanup policy to ${REPOSITORY}"
+  gcloud artifacts repositories set-cleanup-policies "$REPOSITORY" \
+    --project "$PROJECT_ID" --location "$REGION" \
+    --policy scripts/artifact-cleanup-policy.json --no-dry-run >/dev/null
+
   echo "==> Building ${IMAGE}"
   gcloud builds submit --project "$PROJECT_ID" --region "$REGION" --tag "$IMAGE" .
 fi

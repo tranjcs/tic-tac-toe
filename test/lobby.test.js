@@ -6,6 +6,8 @@ const { Lobby } = require('../src/lobby');
 const { Mark, Status } = require('../src/constants');
 
 const DELAY = 1000;
+const TURN = 15000;
+const KICK = 60000;
 
 /** Plays moves for X (`x`) and O (`o`) alternately, starting with X. */
 function playMoves(lobby, x, o, cells) {
@@ -19,11 +21,13 @@ const DRAW_GAME = [0, 1, 2, 4, 3, 5, 7, 6, 8];
 describe('Lobby', () => {
   let lobby;
   let onChange;
+  let onKick;
 
   beforeEach(() => {
-    mock.timers.enable({ apis: ['setTimeout'] });
+    mock.timers.enable({ apis: ['setTimeout', 'Date'] });
     onChange = mock.fn();
-    lobby = new Lobby({ onChange, resultDelayMs: DELAY });
+    onKick = mock.fn();
+    lobby = new Lobby({ onChange, onKick, resultDelayMs: DELAY, turnTimeoutMs: TURN, kickAfterMs: KICK });
   });
 
   afterEach(() => {
@@ -239,5 +243,93 @@ describe('Lobby', () => {
     lobby.move('a', 0);
     lobby.leave('c');
     assert.equal(lobby.stateFor('a').board[0], Mark.X);
+  });
+
+  describe('turn timer', () => {
+    it('reports the time left to move, counting down', () => {
+      lobby.join('a');
+      assert.equal(lobby.stateFor('a').turnRemainingMs, undefined, 'no timer while waiting');
+      lobby.join('b');
+      assert.equal(lobby.stateFor('a').turnRemainingMs, TURN);
+      mock.timers.tick(4000);
+      assert.equal(lobby.stateFor('b').turnRemainingMs, TURN - 4000);
+    });
+
+    it('restarts after each move', () => {
+      lobby.join('a');
+      lobby.join('b');
+      mock.timers.tick(TURN - 1);
+      lobby.move('a', 0);
+      assert.equal(lobby.stateFor('a').turnRemainingMs, TURN);
+      mock.timers.tick(TURN - 1);
+      assert.equal(lobby.stateFor('a').result, null, 'O still has 1ms');
+    });
+
+    it('a player who runs out of time loses and goes to the back', () => {
+      ['a', 'b', 'c'].forEach((id) => lobby.join(id));
+      lobby.move('a', 0);
+      const calls = onChange.mock.callCount();
+      mock.timers.tick(TURN);
+      const state = lobby.stateFor('c');
+      assert.deepEqual([state.result, state.timedOut], [Mark.X, Mark.O]);
+      assert.equal(state.turnRemainingMs, undefined, 'no countdown on a finished game');
+      assert.equal(onChange.mock.callCount(), calls + 1);
+
+      mock.timers.tick(DELAY);
+      assert.deepEqual(lobby.playerIds, ['a', 'c', 'b']);
+      assert.equal(lobby.stateFor('a').turnRemainingMs, TURN, 'new game, fresh timer');
+    });
+
+    it('stops once the game is won', () => {
+      ['a', 'b', 'c'].forEach((id) => lobby.join(id));
+      playMoves(lobby, 'a', 'b', X_WINS);
+      mock.timers.tick(DELAY - 1);
+      mock.timers.tick(TURN); // would time out O if the timer were still running
+      assert.equal(lobby.stateFor('a').timedOut, null);
+    });
+
+    it('restarts when a player leaves mid-game', () => {
+      ['a', 'b', 'c'].forEach((id) => lobby.join(id));
+      mock.timers.tick(TURN - 1);
+      lobby.leave('a');
+      assert.equal(lobby.stateFor('b').turnRemainingMs, TURN);
+    });
+
+    /** b moves somewhere, then a lets their turn run out. */
+    function bMovesThenATimesOut() {
+      lobby.move('b', lobby.stateFor('b').board.indexOf(null));
+      mock.timers.tick(TURN);
+    }
+
+    it('removes a player who keeps timing out without moving', () => {
+      lobby.join('a');
+      lobby.join('b');
+      mock.timers.tick(TURN); // a (X) times out first: the removal clock starts now
+      const started = Date.now();
+      // From here on b wins and stays X; a keeps coming back as O and timing out.
+      while (Date.now() - started < KICK) {
+        assert.equal(onKick.mock.callCount(), 0);
+        mock.timers.tick(DELAY);
+        assert.equal(lobby.stateFor('a').mark, Mark.O);
+        bMovesThenATimesOut();
+      }
+      assert.deepEqual(onKick.mock.calls.map((call) => call.arguments[0]), ['a']);
+      assert.deepEqual(lobby.playerIds, ['b']);
+      assert.equal(lobby.stateFor('b').status, Status.WAITING);
+    });
+
+    it('moving resets the removal clock', () => {
+      lobby.join('a');
+      lobby.join('b');
+      mock.timers.tick(TURN); // a (X) times out: the clock starts
+      mock.timers.tick(DELAY); // b is X now, a is O
+      lobby.move('b', 0);
+      lobby.move('a', 4);
+      assert.equal(lobby.timingOutSince.has('a'), false);
+      lobby.move('b', 8);
+      mock.timers.tick(KICK); // a times out again, long after the first time
+      assert.equal(onKick.mock.callCount(), 0, 'the clock restarted when a moved');
+      assert.equal(lobby.stateFor('a').timedOut, Mark.O);
+    });
   });
 });

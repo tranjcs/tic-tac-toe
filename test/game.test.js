@@ -32,7 +32,9 @@ describe('getResult', () => {
 describe('Game', () => {
   it('starts empty with X to move', () => {
     const game = new Game();
-    assert.deepEqual(game.toJSON(), { board: Array(9).fill(null), turn: X, result: null, moves: [] });
+    assert.deepEqual(game.toJSON(), {
+      board: Array(9).fill(null), turn: X, result: null, timedOut: null, moves: [],
+    });
   });
 
   it('alternates turns', () => {
@@ -88,5 +90,14 @@ describe('Game', () => {
     assert.deepEqual(game.toJSON().moves, [4, 0]);
     game.toJSON().moves.push(8);
     assert.deepEqual(game.moves, [4, 0], 'toJSON returns a copy');
+  });
+
+  it('timing out forfeits the game to the opponent', () => {
+    const game = new Game();
+    game.play(X, 0);
+    assert.equal(game.timeOut(), true);
+    assert.deepEqual([game.result, game.timedOut], [X, O]);
+    assert.equal(game.play(O, 1), false);
+    assert.equal(game.timeOut(), false, 'cannot time out a finished game');
   });
 });

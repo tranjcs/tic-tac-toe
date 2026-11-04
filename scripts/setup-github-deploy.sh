@@ -60,6 +60,13 @@ if ! gcloud artifacts repositories describe "$REPOSITORY" \
     --description "Tic-tac-toe images"
 fi
 
+# Keep only the 5 newest images (each deploy adds one) so storage doesn't grow forever.
+# Needs repository admin rights, so it runs here and not in CI.
+echo "==> Applying image cleanup policy to ${REPOSITORY}"
+gcloud artifacts repositories set-cleanup-policies "$REPOSITORY" \
+  --project "$PROJECT_ID" --location "$REGION" \
+  --policy scripts/artifact-cleanup-policy.json --no-dry-run >/dev/null
+
 if ! gcloud iam service-accounts describe "$DEPLOY_SA" --project "$PROJECT_ID" >/dev/null 2>&1; then
   echo "==> Creating service account ${DEPLOY_SA}"
   gcloud iam service-accounts create "$DEPLOY_SA_NAME" --project "$PROJECT_ID" \
