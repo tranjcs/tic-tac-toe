@@ -25,6 +25,7 @@ Open http://localhost:3000 in two (or more) browser tabs. Use `npm run dev` to r
 | `PORT`            | `3000`  | HTTP port                                    |
 | `RESULT_DELAY_MS` | `3000`  | How long a finished game's result is shown   |
 | `TURN_TIMEOUT_MS` | `15000` | How long a player has to move before forfeiting |
+| `IDLE_TIMEOUT_MS` | `1200000` | Disconnect a client that reports no activity for this long (20 min) |
 
 ## How it works
 
@@ -103,7 +104,12 @@ then it's about $0.09 per hour (us-central1 list prices; check the
 when its tab has been hidden for 60 seconds and reconnects when it's visible again. It also disconnects
 a visible tab after 15 minutes with no mouse, touch or keyboard activity, and the server disconnects a
 player who has timed out on every turn for 15 minutes, so a tab left open on an unattended screen
-doesn't keep the server running. Worst case, a connection held open all month costs about $60.
+doesn't keep the server running. As a backstop, the server also disconnects any client that hasn't reported
+activity for 20 minutes, which covers old versions of the page still open in someone's browser. Worst case, a connection held open all month costs about $60.
+
+Each deploy stores a new image in Artifact Registry. The deploy and setup scripts apply a cleanup
+policy (`scripts/artifact-cleanup-policy.json`) that keeps the 5 newest images and deletes older
+ones after 7 days.
 
 Set a budget alert as a safety net: in the Google Cloud console, go to **Billing → Budgets & alerts**
 and create a budget of a few dollars with email alerts.

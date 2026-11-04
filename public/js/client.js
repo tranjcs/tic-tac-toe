@@ -4,7 +4,7 @@
 (() => {
   // Keep in sync with src/constants.js.
   const Status = { WAITING: 'waiting', PLAYING: 'playing', IN_LINE: 'in-line' };
-  const Events = { STATE: 'state', MOVE: 'move' };
+  const Events = { STATE: 'state', MOVE: 'move', ACTIVE: 'active' };
   const DRAW = 'draw';
   const BOARD_SIZE = 9;
   const NAME_KEY = 'tic-tac-toe:name';
@@ -195,12 +195,12 @@
   const PAUSED_TEXT = {
     hidden: 'Paused — tab inactive',
     idle: 'Paused — no activity. Click anywhere to rejoin.',
-    kicked: 'Removed for not moving. Click anywhere to rejoin.',
+    kicked: 'Disconnected for inactivity. Click anywhere to rejoin.',
   };
 
   socket.on('disconnect', (reason) => {
-    // The server only disconnects us for timing out turn after turn; it doesn't
-    // reconnect by itself, so wait for the player to come back.
+    // The server only disconnects us for inactivity (no activity reported, or timing out
+    // turn after turn). Socket.IO doesn't reconnect by itself then; wait for the player.
     if (reason === 'io server disconnect') pausedFor = 'kicked';
     statusEl.textContent = pausedFor
       ? PAUSED_TEXT[pausedFor]
@@ -252,8 +252,17 @@
   const IDLE_CHECK_MS = 15 * 1000;
   let lastActivity = Date.now();
 
+  // Tell the server someone is here, at most once a minute; it disconnects clients
+  // that stay quiet (see src/app.js).
+  const ACTIVE_REPORT_MS = 60 * 1000;
+  let lastReported = 0;
+
   function noteActivity() {
     lastActivity = Date.now();
+    if (socket.connected && lastActivity - lastReported >= ACTIVE_REPORT_MS) {
+      lastReported = lastActivity;
+      socket.emit(Events.ACTIVE);
+    }
   }
 
   ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll'].forEach((type) => {

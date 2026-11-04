@@ -6,6 +6,7 @@ const { createApp } = require('./app');
 const { server, io } = createApp({
   resultDelayMs: config.resultDelayMs,
   turnTimeoutMs: config.turnTimeoutMs,
+  idleTimeoutMs: config.idleTimeoutMs,
 });
 
 server.listen(config.port, () => {

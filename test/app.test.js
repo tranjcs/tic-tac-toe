@@ -105,3 +105,39 @@ describe('app (Socket.IO integration)', () => {
     await bPlaying;
   });
 });
+
+describe('app idle disconnect', () => {
+  const IDLE_MS = 150;
+  let server;
+  let url;
+  const sockets = [];
+  const join = () => {
+    const socket = connect(url, { forceNew: true, transports: ['websocket'] });
+    sockets.push(socket);
+    return socket;
+  };
+
+  before(async () => {
+    ({ server } = createApp({ resultDelayMs: 50, idleTimeoutMs: IDLE_MS, idleCheckMs: 25 }));
+    await new Promise((resolve) => server.listen(0, resolve));
+    url = `http://localhost:${server.address().port}`;
+  });
+
+  after(async () => {
+    sockets.forEach((s) => s.disconnect());
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  it('disconnects a client that reports no activity, and keeps one that does', async () => {
+    const quiet = join();
+    const busy = join();
+    await Promise.all([nextState(quiet), nextState(busy)]);
+    const heartbeat = setInterval(() => busy.emit(Events.ACTIVE), IDLE_MS / 3);
+
+    const reason = await new Promise((resolve) => quiet.once('disconnect', resolve));
+    assert.equal(reason, 'io server disconnect', 'server-initiated, so the client does not reconnect');
+    await new Promise((resolve) => setTimeout(resolve, IDLE_MS * 2));
+    clearInterval(heartbeat);
+    assert.equal(busy.connected, true);
+  });
+});
