@@ -141,15 +141,16 @@ npm test       # run all tests
 npm run lint   # run ESLint
 ```
 
-CI runs lint and tests on Node 22 and 24 on every pull request and on every push to `main`.
+CI runs lint and tests on Node 22 and 24 for every pull request and every push to `main`.
 
 ### Branches and pull requests
 
-`main` is the stable branch and is protected: nothing is pushed to it directly.
+`main` is the stable branch and is protected: nothing is pushed to it directly, and every change
+goes through a pull request that must pass the `ci-ok` check.
 
 1. Create a branch from `main` for each change, named `<type>/<short-description>` (see below).
 2. Push the branch and open a pull request into `main`.
-3. Merge once CI passes (`test (22)` and `test (24)`).
+3. Merge once CI passes (the `ci-ok` check is green).
 4. Delete the branch after merging.
 
 To try a branch on the dev server before merging, run **Deploy to dev** and pick that branch.
