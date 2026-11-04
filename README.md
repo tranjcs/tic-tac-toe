@@ -138,3 +138,15 @@ npm run lint   # run ESLint
 ```
 
 CI runs lint and tests on Node 22 and 24 for every push and pull request.
+
+### Branches and pull requests
+
+`main` is the stable branch and is protected: nothing is pushed to it directly.
+
+1. Create a branch from `main` for each change, for example `feature/rematch-button` or
+   `fix/reconnect-name`. (Claude Code sessions use `claude/...` branches.)
+2. Push the branch and open a pull request into `main`.
+3. Merge once CI passes (`test (22)` and `test (24)`).
+4. Delete the branch after merging.
+
+To try a branch on the dev server before merging, run **Deploy to dev** and pick that branch.
