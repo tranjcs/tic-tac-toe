@@ -7,6 +7,9 @@
   --o: #dc2626;
   --panel-bg: #fff;
   --highlight: #fef3c7;
+  --turn-bg: #bbf7d0;
+  --turn-accent: #16a34a;
+  --overlay-bg: rgba(24, 24, 27, 0.4);
   --cell-size: 96px;
 }
 
@@ -20,6 +23,9 @@
     --o: #f87171;
     --panel-bg: #27272a;
     --highlight: #3f3a1e;
+    --turn-bg: #14532d;
+    --turn-accent: #4ade80;
+    --overlay-bg: rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -31,8 +37,25 @@ body {
   margin: 0;
   padding: 24px 16px;
   font-family: system-ui, sans-serif;
+  min-height: 100vh;
   background: var(--bg);
   color: var(--fg);
+  transition: background-color 0.25s ease;
+}
+
+/* The whole screen turns green when it's this player's move. */
+body.my-turn {
+  background: var(--turn-bg);
+}
+
+body.my-turn .status {
+  color: var(--turn-accent);
+  font-weight: 700;
+}
+
+body.my-turn .board {
+  border-radius: 12px;
+  box-shadow: 0 0 0 4px var(--turn-accent);
 }
 
 main {
@@ -63,6 +86,35 @@ h1 {
   grid-template-columns: repeat(3, var(--cell-size));
   grid-template-rows: repeat(3, var(--cell-size));
   gap: 6px;
+}
+
+.board-wrap {
+  position: relative;
+}
+
+/* Covers the board while watching from the line, so it's clear you can't move. */
+.spectate-overlay {
+  position: absolute;
+  inset: -6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--overlay-bg);
+  pointer-events: none;
+}
+
+.spectate-overlay[hidden] {
+  display: none;
+}
+
+.spectate-overlay__label {
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--panel-bg);
+  color: var(--fg);
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 
 .board--inactive {
