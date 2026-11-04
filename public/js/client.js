@@ -31,6 +31,7 @@
   const detailEl = el('detail');
   const lineListEl = el('line-list');
   const lineEmptyEl = el('line-empty');
+  const spectateOverlayEl = el('spectate-overlay');
 
   const cells = Array.from({ length: BOARD_SIZE }, (_, index) => {
     const cell = document.createElement('button');
@@ -109,6 +110,8 @@
       cell.setAttribute('aria-label', `Cell ${index + 1}: ${mark || 'empty'}`);
     });
     boardEl.classList.toggle('board--inactive', state.status === Status.WAITING);
+    document.body.classList.toggle('my-turn', canMove);
+    spectateOverlayEl.hidden = state.status !== Status.IN_LINE;
 
     renderMatchup(state);
     renderLine(state);
@@ -125,6 +128,8 @@
       : 'Disconnected — reconnecting…';
     detailEl.textContent = '';
     cells.forEach((cell) => { cell.disabled = true; });
+    document.body.classList.remove('my-turn');
+    spectateOverlayEl.hidden = true;
     // The matchup and line go stale while disconnected; the next state event redraws them.
     matchupEl.replaceChildren();
     lineListEl.replaceChildren();
