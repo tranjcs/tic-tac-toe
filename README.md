@@ -71,10 +71,13 @@ player who left (`left`, `idle` or `disconnected`) and by the one who stayed (`o
 ### Setup
 
 1. In [Google Analytics](https://analytics.google.com), create a GA4 property and a **Web** data stream
-   for `https://ttt.code-brew.app`. Copy its Measurement ID (`G-…`).
+   for `https://ttt.code-brew.app`. Copy its Measurement ID (`G-…`). Use this ID, not a Google Tag
+   Manager container ID (`GTM-…`); the game loads Google Analytics directly and ignores any other format.
 2. Set it on the service: run the deploy script with `GA_MEASUREMENT_ID=G-…`, or for the GitHub
-   workflow add a `GA_MEASUREMENT_ID` **environment variable** (not a secret; the ID is public) to the
-   `dev` environment. The service keeps the value across later deploys.
+   workflow add `GA_MEASUREMENT_ID` to the `dev` environment as an **environment secret** or an
+   **environment variable** (if both exist, the secret is used). A secret only hides the ID in the
+   Actions logs: it's public anyway, since every visitor's browser receives it.
+   The service keeps the value across later deploys.
 3. In GA, **Admin → Custom definitions**, register these event-scoped **custom dimensions**:
    `viewport_size`, `outcome`, `result`, `opening_move`, `cell_type`, `reason`, `came_from`, `mark`,
    and these **custom metrics**: `duration_sec` (unit: seconds), `wait_sec` (seconds), `total_moves`, `moves_made`.
