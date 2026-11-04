@@ -2,7 +2,8 @@
 
 A simple real-time tic-tac-toe game for two players, built with Node.js, Express and Socket.IO.
 
-**Play it:** https://tic-tac-toe-2vsyooeshq-uc.a.run.app (open it in two tabs, or send the link to a friend)
+**Play it:** https://ttt.code-brew.app (open it in two tabs, or send the link to a friend).
+The Cloud Run URL https://tic-tac-toe-2vsyooeshq-uc.a.run.app also works.
 
 The first visit after a quiet spell can take a few seconds while the server starts up.
 
@@ -55,6 +56,7 @@ src/
 scripts/
   deploy-cloudrun.sh        Build and deploy to Cloud Run
   setup-github-deploy.sh    One-time setup for the GitHub "Deploy to dev" button
+  map-domain.sh             Point a custom domain (ttt.code-brew.app) at the service
 public/
   index.html     Game page
   css/style.css  Styles (light and dark mode)
@@ -125,6 +127,42 @@ One-time setup:
    Optionally, restrict which branches can deploy, or require your approval for each deploy.
 
 3. Go to **Actions → Deploy to dev → Run workflow**.
+
+### Custom domain (ttt.code-brew.app)
+
+The game is served at `ttt.code-brew.app` through a
+[Cloud Run domain mapping](https://cloud.google.com/run/docs/mapping-custom-domains), which is free
+and comes with a Google-managed HTTPS certificate. (A load balancer would also work but costs about
+$18 a month.) The mapping stays in place across deploys; this is a one-time setup.
+
+1. Verify that you own `code-brew.app` (once per Google account; it covers every subdomain):
+
+   ```bash
+   gcloud domains verify code-brew.app
+   ```
+
+   This opens Google Search Console. Add the `TXT` record it shows at your DNS provider and click **Verify**.
+
+2. Create the mapping. The script prints the DNS record to add:
+
+   ```bash
+   PROJECT_ID=your-project-id ./scripts/map-domain.sh
+   ```
+
+3. At your DNS provider, add the record it prints, which is normally:
+
+   | Name  | Type    | Value                   |
+   | ----- | ------- | ----------------------- |
+   | `ttt` | `CNAME` | `ghs.googlehosted.com.` |
+
+   If you use Cloudflare, set the record to **DNS only** (grey cloud), or Google can't issue the certificate.
+   If the domain has `CAA` records, they must allow `pki.goog` and `letsencrypt.org`.
+
+4. Wait for the certificate. Rerun the script to see its status; it's ready when every condition is `True`.
+   This usually takes 15 to 60 minutes, sometimes a few hours. `.app` domains only work over HTTPS,
+   so the site won't load at all until the certificate is issued.
+
+To use a different domain, set `DOMAIN=play.example.com` when running the script.
 
 ### Run with Docker locally
 
