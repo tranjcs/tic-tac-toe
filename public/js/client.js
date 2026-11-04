@@ -68,9 +68,28 @@
   }
 
   socket.on(Events.STATE, render);
-  socket.on('disconnect', () => {
-    statusEl.textContent = 'Disconnected — reconnecting…';
+  socket.on('disconnect', (reason) => {
+    // 'io client disconnect' means we paused it ourselves (see idle handling below).
+    statusEl.textContent = reason === 'io client disconnect'
+      ? 'Paused — tab inactive'
+      : 'Disconnected — reconnecting…';
     detailEl.textContent = '';
     cells.forEach((cell) => { cell.disabled = true; });
+  });
+
+  // Release the connection when the tab stays hidden, so an idle tab doesn't
+  // hold a seat in line (or keep the server running and billed). Rejoins on return.
+  const IDLE_DISCONNECT_MS = 60 * 1000;
+  let idleTimer = null;
+
+  document.addEventListener('visibilitychange', () => {
+    clearTimeout(idleTimer);
+    idleTimer = null;
+    if (document.visibilityState === 'hidden') {
+      idleTimer = setTimeout(() => socket.disconnect(), IDLE_DISCONNECT_MS);
+    } else if (socket.disconnected) {
+      statusEl.textContent = 'Reconnecting…';
+      socket.connect();
+    }
   });
 })();

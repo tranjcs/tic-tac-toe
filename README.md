@@ -44,6 +44,8 @@ src/
   game.js        Tic-tac-toe rules (pure logic)
   constants.js   Shared enums: marks, statuses, event names
   config.js      Environment-based configuration
+scripts/
+  deploy-cloudrun.sh  Build and deploy to Cloud Run
 public/
   index.html     Game page
   css/style.css  Styles (light and dark mode)
@@ -53,6 +55,49 @@ test/
   lobby.test.js  Line/rotation unit tests (mocked timers)
   app.test.js    End-to-end Socket.IO integration test
 ```
+
+## Deploy to Google Cloud Run
+
+Prerequisites: a Google Cloud project with billing enabled, and the
+[gcloud CLI](https://cloud.google.com/sdk/docs/install) installed and logged in (`gcloud auth login`).
+
+```bash
+PROJECT_ID=your-project-id ./scripts/deploy-cloudrun.sh
+```
+
+Set `REGION` to deploy somewhere other than `us-central1`. The script enables the needed APIs,
+creates an Artifact Registry repository, builds the image with Cloud Build (no local Docker needed),
+deploys it, and prints the public URL.
+
+Why the settings are what they are:
+
+- `--max-instances 1`: players and the line live in memory, so there must be exactly one server.
+  Two instances would split players into separate, invisible lobbies.
+- `--cpu 1`: Cloud Run forces one connection per instance below 1 vCPU, which would break the game.
+- `--timeout 3600`: Cloud Run closes any connection after at most 60 minutes. The client
+  reconnects automatically, but the player rejoins at the back of the line.
+- `--min-instances 0`: the server shuts down when nobody is connected, so it costs nothing while idle.
+  The first visit after idle takes a few seconds longer.
+
+### Cost
+
+Cloud Run bills for the whole time a WebSocket is open. Roughly 50 connected hours a month are free,
+then it's about $0.09 per hour (us-central1 list prices; check the
+[pricing page](https://cloud.google.com/run/pricing)). To keep this near $0, the client disconnects
+when its tab has been hidden for 60 seconds and reconnects when it's visible again. A player who hides the tab
+mid-game for that long forfeits. Worst case, a connection held open all month costs about $60.
+
+Set a budget alert as a safety net: in the Google Cloud console, go to **Billing → Budgets & alerts**
+and create a budget of a few dollars with email alerts.
+
+### Run with Docker locally
+
+```bash
+docker build -t tic-tac-toe .
+docker run --rm -p 8080:8080 tic-tac-toe
+```
+
+Then open http://localhost:8080.
 
 ## Development
 
