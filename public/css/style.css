@@ -75,6 +75,24 @@ h1 {
   text-align: center;
 }
 
+.timer {
+  min-height: 1.2em;
+  margin: -8px 0 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+/* Keep the line's space while hidden so the board doesn't jump between turns. */
+.timer[hidden] {
+  display: block;
+  visibility: hidden;
+}
+
+.timer--urgent {
+  color: var(--o);
+  font-weight: 700;
+}
+
 .detail {
   min-height: 1.2em;
   margin: 0 0 16px;

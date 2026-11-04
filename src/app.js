@@ -13,9 +13,10 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
  * Creates the HTTP + Socket.IO server without starting it.
  * @param {object} options
  * @param {number} options.resultDelayMs
+ * @param {number} [options.turnTimeoutMs]
  * @returns {{ server: http.Server, io: Server, lobby: Lobby }}
  */
-function createApp({ resultDelayMs }) {
+function createApp({ resultDelayMs, turnTimeoutMs }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.static(PUBLIC_DIR));
@@ -25,6 +26,8 @@ function createApp({ resultDelayMs }) {
 
   const lobby = new Lobby({
     resultDelayMs,
+    turnTimeoutMs,
+    onKick: (id) => io.sockets.sockets.get(id)?.disconnect(true),
     onChange: () => {
       for (const id of lobby.playerIds) {
         io.to(id).emit(Events.STATE, lobby.stateFor(id));
