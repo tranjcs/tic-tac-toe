@@ -137,4 +137,5 @@ npm test       # run all tests
 npm run lint   # run ESLint
 ```
 
-CI runs lint and tests on Node 22 and 24 for every push and pull request.
+CI runs lint and tests on Node 22 and 24 for every pull request and every push to `main`.
+`main` is protected: changes go through a pull request, which must pass the `ci-ok` check.
