@@ -28,6 +28,10 @@ Every visitor is in exactly one state:
 - **Playing**: you're one of the two active players (first is X, second is O).
 - **In line**: a game is already running; you watch it and see your position in the line.
 
+Each visitor gets a name like **Player 3**. Everyone sees the current matchup
+("Player 1 (X) vs Player 2 (O)") and the list of players waiting in line, in order.
+A name is kept per browser tab, so a tab that reconnects (for example after being idle) gets the same name back.
+
 When a game ends, the result is shown briefly. The winner stays on and the loser goes to
 the back of the line (on a draw, both go to the back). If a player disconnects mid-game,
 the next person in line steps in right away.

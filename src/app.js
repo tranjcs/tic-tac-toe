@@ -33,7 +33,7 @@ function createApp({ resultDelayMs }) {
   });
 
   io.on('connection', (socket) => {
-    lobby.join(socket.id);
+    lobby.join(socket.id, socket.handshake.auth?.name);
     socket.on(Events.MOVE, (cell) => lobby.move(socket.id, cell));
     socket.on('disconnect', () => lobby.leave(socket.id));
   });

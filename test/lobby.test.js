@@ -149,6 +149,78 @@ describe('Lobby', () => {
     assert.equal(lobby.stateFor('a').board[4], Mark.X, 'new game was not rotated away');
   });
 
+  describe('names', () => {
+    it('hands out sequential names', () => {
+      ['a', 'b', 'c'].forEach((id) => lobby.join(id));
+      assert.deepEqual(['a', 'b', 'c'].map((id) => lobby.stateFor(id).name), ['Player 1', 'Player 2', 'Player 3']);
+    });
+
+    it('never reuses a number after a player leaves', () => {
+      lobby.join('a');
+      lobby.join('b');
+      lobby.leave('b');
+      lobby.join('c');
+      assert.equal(lobby.stateFor('c').name, 'Player 3');
+    });
+
+    it('lets a reconnecting player reclaim a free name', () => {
+      lobby.join('a');
+      lobby.join('b', 'Player 7');
+      assert.equal(lobby.stateFor('b').name, 'Player 7');
+      lobby.join('c');
+      assert.equal(lobby.stateFor('c').name, 'Player 8', 'new numbers stay above reclaimed ones');
+    });
+
+    it('rejects a requested name that is already in use', () => {
+      lobby.join('a');
+      lobby.join('b', 'Player 1');
+      assert.equal(lobby.stateFor('b').name, 'Player 2');
+    });
+
+    it('rejects malformed requested names', () => {
+      const bad = ['<script>alert(1)</script>', 'Player 0', 'Player 01', 'Player 1234567', 'player 5', ' Player 5', 42, {}, null];
+      bad.forEach((name, i) => lobby.join(`id${i}`, name));
+      assert.deepEqual(
+        bad.map((_, i) => lobby.stateFor(`id${i}`).name),
+        bad.map((_, i) => `Player ${i + 1}`),
+      );
+    });
+
+    it('frees a name when its player leaves', () => {
+      lobby.join('a');
+      lobby.leave('a');
+      lobby.join('b', 'Player 1');
+      assert.equal(lobby.stateFor('b').name, 'Player 1');
+    });
+  });
+
+  describe('matchup and line', () => {
+    it('a lone waiting player is the only one in line, with no matchup', () => {
+      lobby.join('a');
+      const state = lobby.stateFor('a');
+      assert.equal(state.players, null);
+      assert.deepEqual(state.line, ['Player 1']);
+    });
+
+    it('everyone sees the matchup and the line in order', () => {
+      ['a', 'b', 'c', 'd'].forEach((id) => lobby.join(id));
+      for (const id of ['a', 'b', 'c', 'd']) {
+        const state = lobby.stateFor(id);
+        assert.deepEqual(state.players, { X: 'Player 1', O: 'Player 2' });
+        assert.deepEqual(state.line, ['Player 3', 'Player 4']);
+      }
+    });
+
+    it('winner plays the next in line and the loser joins the back', () => {
+      ['a', 'b', 'c', 'd'].forEach((id) => lobby.join(id));
+      playMoves(lobby, 'a', 'b', X_WINS);
+      mock.timers.tick(DELAY);
+      const state = lobby.stateFor('d');
+      assert.deepEqual(state.players, { X: 'Player 1', O: 'Player 3' });
+      assert.deepEqual(state.line, ['Player 4', 'Player 2']);
+    });
+  });
+
   it('a spectator leaving does not affect the game', () => {
     ['a', 'b', 'c'].forEach((id) => lobby.join(id));
     lobby.move('a', 0);

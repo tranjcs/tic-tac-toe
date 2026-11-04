@@ -19,8 +19,18 @@ function nextState(socket, predicate = () => true) {
   });
 }
 
+/** Polls until `condition` is true; the server handles disconnects asynchronously. */
+async function until(condition, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error('Timed out waiting for condition');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
 describe('app (Socket.IO integration)', () => {
   let server;
+  let lobby;
   let url;
   const sockets = [];
   const join = () => {
@@ -30,7 +40,7 @@ describe('app (Socket.IO integration)', () => {
   };
 
   before(async () => {
-    ({ server } = createApp({ resultDelayMs: 50 }));
+    ({ server, lobby } = createApp({ resultDelayMs: 50 }));
     await new Promise((resolve) => server.listen(0, resolve));
     url = `http://localhost:${server.address().port}`;
   });
@@ -44,6 +54,20 @@ describe('app (Socket.IO integration)', () => {
     const res = await fetch(url);
     assert.equal(res.status, 200);
     assert.match(await res.text(), /<title>Tic-Tac-Toe<\/title>/);
+  });
+
+  it('assigns names and lets a reconnecting client keep its name', async () => {
+    const first = join();
+    const { name } = await nextState(first);
+    assert.match(name, /^Player \d+$/);
+    first.disconnect();
+    await until(() => lobby.playerIds.length === 0);
+
+    const again = connect(url, { forceNew: true, transports: ['websocket'], auth: { name } });
+    sockets.push(again);
+    assert.equal((await nextState(again)).name, name);
+    again.disconnect();
+    await until(() => lobby.playerIds.length === 0);
   });
 
   it('runs waiting → playing → in line → rotation → disconnect', async () => {

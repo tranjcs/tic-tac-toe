@@ -9,9 +9,17 @@
 <body>
   <main>
     <h1>Tic-Tac-Toe</h1>
+    <p id="me" class="me"></p>
+    <p id="matchup" class="matchup" aria-label="Current match"></p>
     <p id="status" class="status" role="status" aria-live="polite">Connecting…</p>
     <p id="detail" class="detail"></p>
     <div id="board" class="board board--inactive" role="grid" aria-label="Game board"></div>
+
+    <section class="line" aria-labelledby="line-heading">
+      <h2 id="line-heading">Waiting in line</h2>
+      <ol id="line-list" class="line__list"></ol>
+      <p id="line-empty" class="line__empty">Nobody waiting</p>
+    </section>
   </main>
 
   <script src="/socket.io/socket.io.js"></script>

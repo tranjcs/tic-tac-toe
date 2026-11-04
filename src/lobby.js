@@ -3,12 +3,16 @@
 const { Game } = require('./game');
 const { Mark, Status } = require('./constants');
 
+// Only names the server itself would hand out may be reclaimed on reconnect.
+const NAME_PATTERN = /^Player ([1-9]\d{0,5})$/;
+
 /**
  * Manages the line of connected players and the single active game.
  *
  * The first two players in the queue play; everyone else waits in line.
  * After a game ends the winner stays on and the loser moves to the back of
- * the line (on a draw both move to the back). Independent of Socket.IO so it
+ * the line (on a draw both move to the back). Each player gets a name like
+ * "Player 3", which they can reclaim when reconnecting. Independent of Socket.IO so it
  * can be unit tested; call `onChange` listeners to push state to clients.
  */
 class Lobby {
@@ -27,6 +31,9 @@ class Lobby {
     /** @type {[string, string]|null} ids of the X and O players */
     this.players = null;
     this.rotationTimer = null;
+    /** @type {Map<string, string>} player id -> display name */
+    this.names = new Map();
+    this.nextNumber = 0;
   }
 
   /** @returns {string[]} ids of all connected players */
@@ -34,8 +41,13 @@ class Lobby {
     return [...this.queue];
   }
 
-  join(id) {
+  /**
+   * @param {string} id
+   * @param {unknown} [requestedName] - untrusted; a name the client had before reconnecting
+   */
+  join(id, requestedName) {
     if (this.queue.includes(id)) return;
+    this.names.set(id, this.assignName(requestedName));
     this.queue.push(id);
     this.startGameIfPossible();
     this.onChange();
@@ -44,6 +56,7 @@ class Lobby {
   leave(id) {
     if (!this.queue.includes(id)) return;
     this.queue = this.queue.filter((queued) => queued !== id);
+    this.names.delete(id);
     if (this.players && this.players.includes(id)) {
       // Remaining player keeps their spot at the front; next in line steps up now.
       this.endGame();
@@ -80,7 +93,16 @@ class Lobby {
     const index = this.queue.indexOf(id);
     if (index === -1) return null;
 
-    const state = { playerCount: this.queue.length };
+    const state = {
+      name: this.names.get(id),
+      players: this.players
+        ? { [Mark.X]: this.names.get(this.players[0]), [Mark.O]: this.names.get(this.players[1]) }
+        : null,
+      line: this.queue
+        .filter((queued) => !this.players || !this.players.includes(queued))
+        .map((queued) => this.names.get(queued)),
+      playerCount: this.queue.length,
+    };
     const mark = this.markOf(id);
     if (mark) {
       state.status = Status.PLAYING;
@@ -101,6 +123,19 @@ class Lobby {
   dispose() {
     clearTimeout(this.rotationTimer);
     this.rotationTimer = null;
+  }
+
+  /** Reuses a valid, unclaimed requested name; otherwise hands out the next number. */
+  assignName(requestedName) {
+    const match = typeof requestedName === 'string' ? NAME_PATTERN.exec(requestedName) : null;
+    const inUse = match && [...this.names.values()].includes(requestedName);
+    if (match && !inUse) {
+      // Keep new numbers above any reclaimed one so they never collide.
+      this.nextNumber = Math.max(this.nextNumber, Number(match[1]));
+      return requestedName;
+    }
+    this.nextNumber += 1;
+    return `Player ${this.nextNumber}`;
   }
 
   startGameIfPossible() {

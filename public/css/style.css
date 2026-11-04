@@ -5,6 +5,8 @@
   --cell-bg: #fff;
   --x: #2563eb;
   --o: #dc2626;
+  --panel-bg: #fff;
+  --highlight: #fef3c7;
   --cell-size: 96px;
 }
 
@@ -16,6 +18,8 @@
     --cell-bg: #27272a;
     --x: #60a5fa;
     --o: #f87171;
+    --panel-bg: #27272a;
+    --highlight: #3f3a1e;
   }
 }
 
@@ -91,4 +95,63 @@ h1 {
 
 .cell--O {
   color: var(--o);
+}
+
+.me {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.matchup {
+  min-height: 1.4em;
+  margin: 4px 0;
+  text-align: center;
+}
+
+.matchup__player {
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.matchup__player--turn {
+  background: var(--highlight);
+  font-weight: 600;
+}
+
+.line {
+  width: 100%;
+  max-width: 320px;
+  margin-top: 24px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--panel-bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.line h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.line__list {
+  margin: 0;
+  padding-left: 1.5em;
+}
+
+.line__list li {
+  padding: 2px 0;
+}
+
+.line__you {
+  font-weight: 600;
+}
+
+.line__empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.line__empty[hidden],
+.line__list[hidden] {
+  display: none;
 }
