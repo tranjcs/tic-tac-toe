@@ -161,7 +161,96 @@
     lineEmptyEl.hidden = items.length > 0;
   }
 
+  // --- Analytics: game events for public/js/analytics.js (a no-op when GA is off) ---
+
+  const CENTER = 4;
+  const CORNERS = new Set([0, 2, 6, 8]);
+  const cellType = (cell) => (cell === CENTER ? 'center' : CORNERS.has(cell) ? 'corner' : 'edge');
+  const secondsSince = (time) => Math.round((Date.now() - time) / 1000);
+  const track = (name, params) => window.analytics.track(name, params);
+
+  // The game this client is playing in (null when not playing), and when it started
+  // waiting for a game (null when not waiting).
+  let currentGame = null;
+  let queuedSince = null;
+  let queuedFrom = null;
+
+  /** Reports a game this client was playing as abandoned, if it hadn't finished. */
+  function abandonGame(reason) {
+    if (currentGame && !currentGame.ended) {
+      track('game_abandon', {
+        reason,
+        mark: currentGame.mark,
+        moves_made: currentGame.movesSeen,
+        duration_sec: secondsSince(currentGame.startedAt),
+      });
+    }
+    currentGame = null;
+  }
+
+  function trackState(state) {
+    const playing = state.status === Status.PLAYING;
+    if (currentGame && (!playing || state.gameId !== currentGame.id)) {
+      // Our game went away before it finished, while we stayed connected.
+      abandonGame('opponent_left');
+    }
+    if (!playing) {
+      if (queuedSince === null) {
+        queuedSince = Date.now();
+        queuedFrom = state.status === Status.WAITING ? 'waiting' : 'in_line';
+      }
+      return;
+    }
+
+    if (!currentGame) {
+      // The winner stays on without waiting, so only report a wait if there was one.
+      if (queuedSince !== null) {
+        track('match_found', { wait_sec: secondsSince(queuedSince), came_from: queuedFrom });
+        queuedSince = null;
+      }
+      currentGame = { id: state.gameId, mark: state.mark, startedAt: Date.now(), movesSeen: 0, ended: false };
+      track('game_start', { mark: state.mark });
+    }
+
+    const moves = state.moves || [];
+    for (let i = currentGame.movesSeen; i < moves.length; i += 1) {
+      const mark = i % 2 === 0 ? 'X' : 'O'; // X always moves first
+      if (mark === state.mark) {
+        track('move', { cell_type: cellType(moves[i]), mark });
+      }
+    }
+    currentGame.movesSeen = moves.length;
+
+    if (state.result && !currentGame.ended) {
+      currentGame.ended = true;
+      const duration = secondsSince(currentGame.startedAt);
+      const opening = moves.length ? cellType(moves[0]) : undefined;
+      const outcome = state.result === DRAW ? 'draw' : state.result === state.mark ? 'win' : 'loss';
+      track('game_end', {
+        outcome,
+        mark: state.mark,
+        total_moves: moves.length,
+        duration_sec: duration,
+        opening_move: opening,
+        timed_out: Boolean(state.timedOut),
+      });
+      // One report per game (from X), so game-level counts aren't doubled.
+      if (state.mark === 'X') {
+        track('game_complete', {
+          result: state.result === DRAW ? 'draw' : `${state.result.toLowerCase()}_win`,
+          opening_move: opening,
+          total_moves: moves.length,
+          duration_sec: duration,
+          timed_out: Boolean(state.timedOut),
+          // The whole game, e.g. "4,0,3,1,5": cells 0-8 row by row from the top left, X first.
+          moves: moves.join(','),
+        });
+      }
+    }
+  }
+
   function render(state) {
+    trackState(state);
     storage.set(state.name);
     meEl.textContent = `You are ${state.name}`;
 
@@ -202,6 +291,9 @@
     // The server only disconnects us for inactivity (no activity reported, or timing out
     // turn after turn). Socket.IO doesn't reconnect by itself then; wait for the player.
     if (reason === 'io server disconnect') pausedFor = 'kicked';
+    // pausedFor is 'hidden', 'idle' or 'kicked' when the disconnect was on purpose.
+    abandonGame(pausedFor || 'disconnected');
+    queuedSince = null; // a reconnect joins the line afresh
     statusEl.textContent = pausedFor
       ? PAUSED_TEXT[pausedFor]
       : 'Disconnected — reconnecting…';
@@ -216,6 +308,9 @@
     lineListEl.hidden = true;
     lineEmptyEl.hidden = true;
   });
+
+  // gtag sends with sendBeacon, so this still goes out as the page unloads.
+  window.addEventListener('pagehide', () => abandonGame('left'));
 
   // An open connection keeps the server running (and billed), and holds a seat in
   // line, so let go of it when nobody is there. Rejoin when they come back.

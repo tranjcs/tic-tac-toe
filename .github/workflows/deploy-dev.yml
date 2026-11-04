@@ -41,6 +41,9 @@ jobs:
     env:
       PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       REGION: ${{ secrets.GCP_REGION || 'us-central1' }}
+      # Optional. Read from a secret or a variable in the "dev" environment (the secret wins).
+      # The ID is public anyway (browsers receive it); a secret only masks it in these logs.
+      GA_MEASUREMENT_ID: ${{ secrets.GA_MEASUREMENT_ID || vars.GA_MEASUREMENT_ID }}
     steps:
       - name: Check configuration
         env:

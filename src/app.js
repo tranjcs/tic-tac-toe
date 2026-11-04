@@ -14,6 +14,7 @@ const DEFAULT_IDLE_TIMEOUT_MS = 20 * 60 * 1000;
  * Creates the HTTP + Socket.IO server without starting it.
  * @param {object} options
  * @param {number} options.resultDelayMs
+ * @param {string|null} [options.gaMeasurementId] - GA4 ID; analytics is off when null
  * @param {number} [options.turnTimeoutMs]
  * @param {number} [options.idleTimeoutMs] - disconnect a client that reports no activity for this long
  * @param {number} [options.idleCheckMs] - how often to look for idle clients
@@ -24,9 +25,16 @@ function createApp({
   turnTimeoutMs,
   idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS,
   idleCheckMs = Math.min(30 * 1000, idleTimeoutMs),
+  gaMeasurementId = null,
 }) {
   const app = express();
   app.disable('x-powered-by');
+
+  // Runtime settings for the browser (public/js/analytics.js reads them).
+  const clientConfig = `window.TTT_CONFIG = ${JSON.stringify({ gaMeasurementId })};\n`;
+  app.get('/config.js', (req, res) => {
+    res.type('text/javascript').set('Cache-Control', 'no-cache').send(clientConfig);
+  });
   app.use(express.static(PUBLIC_DIR));
 
   const server = http.createServer(app);

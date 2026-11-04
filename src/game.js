@@ -30,6 +30,8 @@ class Game {
     this.board = Array(BOARD_SIZE).fill(null);
     this.turn = Mark.X;
     this.result = null;
+    /** @type {number[]} cells played, in order */
+    this.moves = [];
     /** @type {string|null} mark of the player who ran out of time, if any */
     this.timedOut = null;
   }
@@ -50,6 +52,7 @@ class Game {
     if (this.board[cell] !== null) return false;
 
     this.board[cell] = mark;
+    this.moves.push(cell);
     this.result = getResult(this.board);
     if (!this.isOver) {
       this.turn = mark === Mark.X ? Mark.O : Mark.X;
@@ -69,7 +72,13 @@ class Game {
   }
 
   toJSON() {
-    return { board: [...this.board], turn: this.turn, result: this.result, timedOut: this.timedOut };
+    return {
+      board: [...this.board],
+      turn: this.turn,
+      result: this.result,
+      timedOut: this.timedOut,
+      moves: [...this.moves],
+    };
   }
 }
 

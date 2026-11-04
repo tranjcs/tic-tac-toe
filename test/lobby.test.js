@@ -225,6 +225,19 @@ describe('Lobby', () => {
     });
   });
 
+  it('numbers each game so clients can tell games apart', () => {
+    lobby.join('a');
+    assert.equal(lobby.stateFor('a').gameId, undefined, 'no game yet');
+    ['b', 'c'].forEach((id) => lobby.join(id));
+    assert.equal(lobby.stateFor('c').gameId, 1);
+    playMoves(lobby, 'a', 'b', X_WINS);
+    assert.equal(lobby.stateFor('a').gameId, 1, 'same game while showing the result');
+    mock.timers.tick(DELAY);
+    assert.equal(lobby.stateFor('a').gameId, 2, 'rotation starts a new game');
+    lobby.leave('c');
+    assert.equal(lobby.stateFor('a').gameId, 3, 'a replacement game after a player leaves');
+  });
+
   it('a spectator leaving does not affect the game', () => {
     ['a', 'b', 'c'].forEach((id) => lobby.join(id));
     lobby.move('a', 0);

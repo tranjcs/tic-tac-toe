@@ -4,6 +4,7 @@ const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { io: connect } = require('socket.io-client');
 const { createApp } = require('../src/app');
+const { parseMeasurementId } = require('../src/config');
 const { Events, Status, Mark } = require('../src/constants');
 
 /** Resolves with the next state event matching `predicate`. */
@@ -56,6 +57,20 @@ describe('app (Socket.IO integration)', () => {
     assert.match(await res.text(), /<title>Tic-Tac-Toe<\/title>/);
   });
 
+  it('serves the privacy page, linked from the game page', async () => {
+    const res = await fetch(`${url}/privacy.html`);
+    assert.equal(res.status, 200);
+    assert.match(await res.text(), /Google Analytics/);
+    assert.match(await (await fetch(url)).text(), /href="\/privacy.html"/);
+  });
+
+  it('serves client config with analytics off by default', async () => {
+    const res = await fetch(`${url}/config.js`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type'), /javascript/);
+    assert.equal(await res.text(), 'window.TTT_CONFIG = {"gaMeasurementId":null};\n');
+  });
+
   it('assigns names and lets a reconnecting client keep its name', async () => {
     const first = join();
     const { name } = await nextState(first);
@@ -103,6 +118,26 @@ describe('app (Socket.IO integration)', () => {
     const bPlaying = nextState(b, (s) => s.status === Status.PLAYING);
     a.disconnect();
     await bPlaying;
+  });
+});
+
+describe('client config', () => {
+  it('serves the GA measurement ID when configured', async () => {
+    const { server } = createApp({ resultDelayMs: 50, gaMeasurementId: 'G-TEST1234' });
+    await new Promise((resolve) => server.listen(0, resolve));
+    try {
+      const res = await fetch(`http://localhost:${server.address().port}/config.js`);
+      assert.match(await res.text(), /"gaMeasurementId":"G-TEST1234"/);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it('only accepts well-formed measurement IDs', () => {
+    assert.equal(parseMeasurementId('G-ABC123XYZ'), 'G-ABC123XYZ');
+    for (const bad of [undefined, '', 'UA-12345-1', 'G-abc123', 'G-1"};alert(1)//']) {
+      assert.equal(parseMeasurementId(bad), null, `id=${String(bad)}`);
+    }
   });
 });
 

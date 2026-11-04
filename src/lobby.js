@@ -53,6 +53,8 @@ class Lobby {
     /** @type {Map<string, string>} player id -> display name */
     this.names = new Map();
     this.nextNumber = 0;
+    /** Number of games started; the current game's id. */
+    this.gameCount = 0;
     /** @type {Map<string, number>} player id -> Date.now() of their first timeout since last moving */
     this.timingOutSince = new Map();
   }
@@ -155,6 +157,7 @@ class Lobby {
       state.position = index - 1; // queue[0] and queue[1] are playing, so 1 = next up
     }
     if (this.game) {
+      state.gameId = this.gameCount;
       Object.assign(state, this.game.toJSON());
       if (!this.game.isOver) {
         // Relative, so it doesn't depend on the client's clock being right.
@@ -187,6 +190,7 @@ class Lobby {
   startGameIfPossible() {
     if (this.game || this.queue.length < 2) return;
     this.game = new Game();
+    this.gameCount += 1;
     this.players = [this.queue[0], this.queue[1]];
     this.startTurnTimer();
   }

@@ -26,6 +26,7 @@ Open http://localhost:3000 in two (or more) browser tabs. Use `npm run dev` to r
 | `RESULT_DELAY_MS` | `3000`  | How long a finished game's result is shown   |
 | `TURN_TIMEOUT_MS` | `15000` | How long a player has to move before forfeiting |
 | `IDLE_TIMEOUT_MS` | `1200000` | Disconnect a client that reports no activity for this long (20 min) |
+| `GA_MEASUREMENT_ID` | (none) | Google Analytics 4 ID (`G-XXXXXXXXXX`); analytics is off when unset |
 
 ## How it works
 
@@ -49,6 +50,90 @@ making a move for 15 minutes is disconnected (they can click to rejoin).
 
 The server is authoritative: it validates every move, so clients can't cheat.
 
+## Analytics
+
+The game reports to Google Analytics 4 when `GA_MEASUREMENT_ID` is set. Without it (local runs,
+tests) no analytics script loads and nothing is sent.
+
+**Collected automatically by GA4:** page views, sessions, device category, operating system, browser,
+screen resolution, language, country/region (approximate, from the IP address, which GA4 doesn't store),
+and the referring site. The game adds the **viewport size** (`viewport_size`, e.g. `390x844`) to the page view.
+
+**Game events** (sent by each player's browser; spectators send none):
+
+| Event           | When                                           | Parameters |
+| --------------- | ---------------------------------------------- | ---------- |
+| `match_found`   | A waiting player gets into a game              | `wait_sec`, `came_from` (`waiting` / `in_line`) |
+| `game_start`    | A game starts for this player                  | `mark` |
+| `move`          | This player makes a move                       | `cell_type` (`center` / `corner` / `edge`), `mark` |
+| `game_end`      | A game this player was in finishes             | `outcome` (`win` / `loss` / `draw`), `mark`, `total_moves`, `duration_sec`, `opening_move`, `timed_out` (a player ran out of time) |
+| `game_complete` | Once per finished game (sent by the X player)  | `result` (`x_win` / `o_win` / `draw`), `opening_move`, `total_moves`, `duration_sec`, `timed_out`, `moves` (the whole game, see below) |
+| `game_abandon`  | A game ends without a result                   | `reason` (`opponent_left` / `left` / `hidden` / `idle` / `kicked` / `disconnected`), `mark`, `moves_made`, `duration_sec` |
+
+Use `game_complete` for per-game numbers (it's sent once per game) and `game_end` / `game_start`
+for per-player and per-device numbers. An abandoned game is usually reported twice: by the
+player who left (`left`, `hidden`, `idle`, `kicked` or `disconnected`) and by the one who stayed (`opponent_left`).
+
+### Setup
+
+1. In [Google Analytics](https://analytics.google.com), create a GA4 property and a **Web** data stream
+   for `https://ttt.code-brew.app`. Copy its Measurement ID (`G-…`). Use this ID, not a Google Tag
+   Manager container ID (`GTM-…`); the game loads Google Analytics directly and ignores any other format.
+2. Set it on the service: run the deploy script with `GA_MEASUREMENT_ID=G-…`, or for the GitHub
+   workflow add `GA_MEASUREMENT_ID` to the `dev` environment as an **environment secret** or an
+   **environment variable** (if both exist, the secret is used). A secret only hides the ID in the
+   Actions logs: it's public anyway, since every visitor's browser receives it.
+   The service keeps the value across later deploys.
+3. In GA, **Admin → Custom definitions**, register these event-scoped **custom dimensions**:
+   `viewport_size`, `outcome`, `result`, `opening_move`, `cell_type`, `reason`, `came_from`, `mark`, `timed_out`,
+   and these **custom metrics**: `duration_sec` (unit: seconds), `wait_sec` (seconds), `total_moves`, `moves_made`.
+   Data is only broken down by a parameter from the moment it's registered.
+
+### Answering common questions
+
+Build these in **Explore** (free-form reports). Device category, browser, OS and so on are standard dimensions.
+
+| Question | How |
+| -------- | --- |
+| How many games were played today? | `game_complete` event count, date = today |
+| What percentage of games end in a draw? | `game_complete` count with `result` = `draw` ÷ all `game_complete` |
+| Wins / losses / draws | `game_end` count by `outcome` (or `game_complete` by `result` per game) |
+| Which opening move is most popular? | `game_complete` count by `opening_move` |
+| Which moves do players make? | `move` count by `cell_type` |
+| Average game duration | Average `duration_sec` on `game_complete` |
+| Average matchmaking wait | Average `wait_sec` on `match_found` |
+| Abandonment | `game_abandon` count by `reason`, with `moves_made` ("left after 3 moves") |
+| Game completion rate by device | `game_end` count ÷ `game_start` count, by device category |
+| Average games per session by device | `game_end` count ÷ sessions, by device category |
+| Most common game lines, best replies, missed wins | Query `moves` on `game_complete` in BigQuery (see below) |
+
+### Raw data (BigQuery)
+
+`moves` on `game_complete` records the whole game as cell numbers in play order, X first,
+for example `4,0,3,1,5`. Cells are numbered 0-8, row by row from the top left:
+
+```
+0 | 1 | 2
+3 | 4 | 5
+6 | 7 | 8
+```
+
+With so many different values, GA's own reports lump `moves` into "(other)", so analyze it with the free
+BigQuery export instead: **Admin → Product links → BigQuery links → Link**, pick your Google Cloud
+project, and choose a daily export. GA then copies every raw event (with all its parameters) into
+BigQuery from that day on, where you can rebuild every game and ask any question with SQL. The export
+isn't backfilled, so turn it on early. Storage for a game this size fits in BigQuery's free tier.
+
+### Consent
+
+Google Consent Mode is on. For visitors in the EEA, the UK and Switzerland, analytics storage
+starts as **denied**: GA sends cookieless pings and sets no cookies, and Google models the missing
+data. Elsewhere analytics cookies are used. Advertising storage and personalization are denied everywhere.
+There's no consent banner, so EU/UK numbers will be less precise.
+
+The privacy notice at `/privacy.html` (linked from the game page) describes this. Update it if you
+change what's collected.
+
 ## Project structure
 
 ```
@@ -65,8 +150,10 @@ scripts/
   map-domain.sh             Point a custom domain (ttt.code-brew.app) at the service
 public/
   index.html     Game page
+  privacy.html   Privacy notice (what's collected, Google Analytics, cookies)
   css/style.css  Styles (light and dark mode)
-  js/client.js   Browser client
+  js/client.js   Browser client (also reports game events to analytics)
+  js/analytics.js  Google Analytics loader (off unless GA_MEASUREMENT_ID is set)
 test/
   game.test.js   Game rules unit tests
   lobby.test.js  Line/rotation unit tests (mocked timers)

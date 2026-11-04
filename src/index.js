@@ -5,6 +5,7 @@ const { createApp } = require('./app');
 
 const { server, io } = createApp({
   resultDelayMs: config.resultDelayMs,
+  gaMeasurementId: config.gaMeasurementId,
   turnTimeoutMs: config.turnTimeoutMs,
   idleTimeoutMs: config.idleTimeoutMs,
 });
