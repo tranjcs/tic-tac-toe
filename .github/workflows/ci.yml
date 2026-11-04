@@ -2,7 +2,16 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
+
+permissions:
+  contents: read
+
+# Stop superseded runs on the same PR; let every run on main finish.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -19,3 +28,16 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+
+  # Single, stable check to require in branch protection, independent of the matrix above.
+  ci-ok:
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: All tests passed
+        env:
+          RESULT: ${{ needs.test.result }}
+        run: |
+          echo "test result: $RESULT"
+          [[ "$RESULT" == "success" ]]
