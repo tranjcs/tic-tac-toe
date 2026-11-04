@@ -143,10 +143,25 @@ CI runs lint and tests on Node 22 and 24 for every push and pull request.
 
 `main` is the stable branch and is protected: nothing is pushed to it directly.
 
-1. Create a branch from `main` for each change, for example `feature/rematch-button` or
-   `fix/reconnect-name`. (Claude Code sessions use `claude/...` branches.)
+1. Create a branch from `main` for each change, named `<type>/<short-description>` (see below).
 2. Push the branch and open a pull request into `main`.
 3. Merge once CI passes (`test (22)` and `test (24)`).
 4. Delete the branch after merging.
 
 To try a branch on the dev server before merging, run **Deploy to dev** and pick that branch.
+
+#### Branch names
+
+Use `<type>/<short-description>`: lowercase, words separated by hyphens, a few words at most.
+
+| Type       | Use for                                   | Example                    |
+| ---------- | ----------------------------------------- | -------------------------- |
+| `feature`  | New behavior players or users can see     | `feature/rematch-button`   |
+| `fix`      | Bug fixes                                 | `fix/reconnect-name`       |
+| `docs`     | README and other documentation only       | `docs/branch-naming`       |
+| `test`     | Adding or changing tests only             | `test/lobby-disconnects`   |
+| `refactor` | Code changes that don't change behavior   | `refactor/split-lobby`     |
+| `ci`       | GitHub Actions and deploy scripts         | `ci/skip-duplicate-runs`   |
+| `chore`    | Dependency updates and other upkeep       | `chore/update-socket-io`   |
+
+Claude Code sessions name their own branches `claude/<generated-name>`; that's the one exception.
