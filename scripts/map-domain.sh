@@ -14,7 +14,8 @@ DOMAIN="${DOMAIN:-ttt.code-brew.app}"
 SERVICE="tic-tac-toe"
 
 # Verified domains look like "code-brew.app"; a subdomain is covered by its verified parent.
-verified="$(gcloud domains list-user-verified --format 'value(id)' 2>/dev/null || true)"
+# This command needs a project even though verification belongs to the account, not the project.
+verified="$(gcloud domains list-user-verified --project "$PROJECT_ID" --format 'value(id)')"
 covered=""
 for d in $verified; do
   if [[ "$DOMAIN" == "$d" || "$DOMAIN" == *".$d" ]]; then covered="$d"; fi
