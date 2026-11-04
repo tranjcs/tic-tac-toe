@@ -102,7 +102,8 @@ branch you pick, builds the image, and deploys it to Cloud Run. It only runs whe
 
 GitHub logs in to Google Cloud with [Workload Identity Federation](https://github.com/google-github-actions/auth#preferred-direct-workload-identity-federation),
 so no key is stored anywhere. Google only accepts logins from this repository's `dev` environment.
-Project settings live in that GitHub environment, not in the code.
+Project settings are stored as **secrets** in that GitHub environment, not in the code. The repo
+is public, so its Actions logs are too; GitHub masks secret values as `***` in them.
 
 One-time setup:
 
@@ -116,7 +117,7 @@ One-time setup:
    repository, and permission to deploy as the service's runtime account.
 
 2. In GitHub, go to **Settings → Environments → New environment**, name it `dev`, and add the four
-   variables the script prints: `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVIDER`, `GCP_DEPLOY_SA`.
+   **environment secrets** the script prints: `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVIDER`, `GCP_DEPLOY_SA`.
    Optionally, restrict which branches can deploy, or require your approval for each deploy.
 
 3. Go to **Actions → Deploy to dev → Run workflow**.
