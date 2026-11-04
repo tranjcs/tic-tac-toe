@@ -3,7 +3,7 @@
 #
 # Creates a deploy service account with only the roles it needs, and a Workload Identity
 # Federation provider that trusts GitHub's tokens only for this repository's environment.
-# Safe to rerun. Prints the variables to add to the GitHub environment; writes nothing to the repo.
+# Safe to rerun. Prints the secrets to add to the GitHub environment; writes nothing to the repo.
 #
 # Usage: PROJECT_ID=my-project [REGION=us-central1] [ENVIRONMENT=dev] [GITHUB_REPO=owner/repo] \
 #          ./scripts/setup-github-deploy.sh
@@ -114,8 +114,9 @@ retry gcloud iam service-accounts add-iam-policy-binding "$DEPLOY_SA" --project 
 
 cat <<MSG
 
-==> Done. Add these as variables in the GitHub environment '${ENVIRONMENT}'
-    (Settings → Environments → ${ENVIRONMENT} → Environment variables):
+==> Done. Add these as secrets in the GitHub environment '${ENVIRONMENT}'
+    (Settings → Environments → ${ENVIRONMENT} → Environment secrets → Add environment secret).
+    Secrets are masked as *** in the public Actions logs.
 
   GCP_PROJECT_ID    ${PROJECT_ID}
   GCP_REGION        ${REGION}
@@ -124,10 +125,10 @@ cat <<MSG
 
 Or with the GitHub CLI:
 
-  gh variable set GCP_PROJECT_ID   --repo ${GITHUB_REPO} --env ${ENVIRONMENT} --body '${PROJECT_ID}'
-  gh variable set GCP_REGION       --repo ${GITHUB_REPO} --env ${ENVIRONMENT} --body '${REGION}'
-  gh variable set GCP_WIF_PROVIDER --repo ${GITHUB_REPO} --env ${ENVIRONMENT} --body '${PROVIDER_ID}'
-  gh variable set GCP_DEPLOY_SA    --repo ${GITHUB_REPO} --env ${ENVIRONMENT} --body '${DEPLOY_SA}'
+  gh secret set GCP_PROJECT_ID   --repo ${GITHUB_REPO} --env ${ENVIRONMENT} --body '${PROJECT_ID}'
+  gh secret set GCP_REGION       --repo ${GITHUB_REPO} --env ${ENVIRONMENT} --body '${REGION}'
+  gh secret set GCP_WIF_PROVIDER --repo ${GITHUB_REPO} --env ${ENVIRONMENT} --body '${PROVIDER_ID}'
+  gh secret set GCP_DEPLOY_SA    --repo ${GITHUB_REPO} --env ${ENVIRONMENT} --body '${DEPLOY_SA}'
 
 Then: Actions → "Deploy to dev" → Run workflow.
 MSG
