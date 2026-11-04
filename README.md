@@ -65,9 +65,9 @@ and the referring site. The game adds the **viewport size** (`viewport_size`, e.
 | --------------- | ---------------------------------------------- | ---------- |
 | `match_found`   | A waiting player gets into a game              | `wait_sec`, `came_from` (`waiting` / `in_line`) |
 | `game_start`    | A game starts for this player                  | `mark` |
-| `move`          | This player makes a move                       | `cell` (0-8), `cell_type` (`center` / `corner` / `edge`), `move_number`, `mark` |
+| `move`          | This player makes a move                       | `cell_type` (`center` / `corner` / `edge`), `mark` |
 | `game_end`      | A game this player was in finishes             | `outcome` (`win` / `loss` / `draw`), `mark`, `total_moves`, `duration_sec`, `opening_move`, `timed_out` (a player ran out of time) |
-| `game_complete` | Once per finished game (sent by the X player)  | `result` (`x_win` / `o_win` / `draw`), `opening_move`, `opening_cell`, `total_moves`, `duration_sec`, `timed_out` |
+| `game_complete` | Once per finished game (sent by the X player)  | `result` (`x_win` / `o_win` / `draw`), `opening_move`, `total_moves`, `duration_sec`, `timed_out` |
 | `game_abandon`  | A game ends without a result                   | `reason` (`opponent_left` / `left` / `hidden` / `idle` / `kicked` / `disconnected`), `mark`, `moves_made`, `duration_sec` |
 
 Use `game_complete` for per-game numbers (it's sent once per game) and `game_end` / `game_start`
@@ -98,7 +98,7 @@ Build these in **Explore** (free-form reports). Device category, browser, OS and
 | How many games were played today? | `game_complete` event count, date = today |
 | What percentage of games end in a draw? | `game_complete` count with `result` = `draw` ÷ all `game_complete` |
 | Wins / losses / draws | `game_end` count by `outcome` (or `game_complete` by `result` per game) |
-| Which opening move is most popular? | `game_complete` count by `opening_move` (or `opening_cell` for the exact square) |
+| Which opening move is most popular? | `game_complete` count by `opening_move` |
 | Which moves do players make? | `move` count by `cell_type` |
 | Average game duration | Average `duration_sec` on `game_complete` |
 | Average matchmaking wait | Average `wait_sec` on `match_found` |

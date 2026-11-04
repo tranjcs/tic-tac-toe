@@ -216,7 +216,7 @@
     for (let i = currentGame.movesSeen; i < moves.length; i += 1) {
       const mark = i % 2 === 0 ? 'X' : 'O'; // X always moves first
       if (mark === state.mark) {
-        track('move', { cell: moves[i], cell_type: cellType(moves[i]), move_number: i + 1, mark });
+        track('move', { cell_type: cellType(moves[i]), mark });
       }
     }
     currentGame.movesSeen = moves.length;
@@ -239,7 +239,6 @@
         track('game_complete', {
           result: state.result === DRAW ? 'draw' : `${state.result.toLowerCase()}_win`,
           opening_move: opening,
-          opening_cell: moves[0],
           total_moves: moves.length,
           duration_sec: duration,
           timed_out: Boolean(state.timedOut),
