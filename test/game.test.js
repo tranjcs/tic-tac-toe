@@ -1,58 +1,80 @@
-const test = require('node:test');
-const assert = require('node:assert');
-const { io } = require('socket.io-client');
-const { createServer } = require('../server');
+'use strict';
 
-function nextState(sock, pred = () => true) {
-  return new Promise((resolve) => {
-    const h = (s) => { if (pred(s)) { sock.off('state', h); resolve(s); } };
-    sock.on('state', h);
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+const { Game, getResult } = require('../src/game');
+const { Mark, DRAW } = require('../src/constants');
+
+const _ = null;
+const { X, O } = Mark;
+
+describe('getResult', () => {
+  it('returns null for an unfinished board', () => {
+    assert.equal(getResult([X, _, _, _, O, _, _, _, _]), null);
   });
-}
 
-test('waiting, playing, in line, win and disconnect', async () => {
-  const server = createServer();
-  await new Promise((r) => server.listen(0, r));
-  const url = `http://localhost:${server.address().port}`;
-  const connect = () => io(url, { forceNew: true });
+  it('detects rows, columns and diagonals', () => {
+    assert.equal(getResult([X, X, X, O, O, _, _, _, _]), X);
+    assert.equal(getResult([O, X, _, O, X, _, O, _, X]), O);
+    assert.equal(getResult([X, O, _, O, X, _, _, _, X]), X);
+    assert.equal(getResult([_, _, O, X, O, X, O, X, _]), O);
+  });
 
-  const a = connect();
-  assert.strictEqual((await nextState(a)).status, 'waiting');
+  it('detects a draw', () => {
+    assert.equal(getResult([X, O, X, X, O, O, O, X, X]), DRAW);
+  });
 
-  const aPlaying = nextState(a, (s) => s.status === 'playing');
-  const b = connect();
-  const bs = await nextState(b, (s) => s.status === 'playing');
-  const as = await aPlaying;
-  assert.strictEqual(as.symbol, 'X');
-  assert.strictEqual(bs.symbol, 'O');
+  it('prefers a win on the final move over a draw', () => {
+    assert.equal(getResult([X, O, X, O, X, O, O, X, X]), X);
+  });
+});
 
-  const c = connect();
-  const cs = await nextState(c);
-  assert.strictEqual(cs.status, 'in-line');
-  assert.strictEqual(cs.position, 1);
+describe('Game', () => {
+  it('starts empty with X to move', () => {
+    const game = new Game();
+    assert.deepEqual(game.toJSON(), { board: Array(9).fill(null), turn: X, result: null });
+  });
 
-  // O tries to move out of turn: ignored. X wins with top row.
-  const moves = [[a, 0], [b, 3], [a, 1], [b, 4], [a, 2]];
-  for (const [sock, cell] of moves) {
-    const p = nextState(a, (s) => s.board && s.board[cell]);
-    sock.emit('move', cell);
-    await p;
-  }
-  const result = await nextState(c, (s) => s.result);
-  assert.strictEqual(result.result, 'X');
+  it('alternates turns', () => {
+    const game = new Game();
+    assert.equal(game.play(X, 0), true);
+    assert.equal(game.turn, O);
+    assert.equal(game.play(O, 1), true);
+    assert.equal(game.turn, X);
+  });
 
-  // After the delay, loser (b) goes to back; c plays a.
-  const cPlay = await nextState(c, (s) => s.status === 'playing');
-  assert.strictEqual(cPlay.symbol, 'O');
-  const bLine = await nextState(b, (s) => s.status === 'in-line');
-  assert.strictEqual(bLine.position, 1);
+  it('rejects moves out of turn', () => {
+    const game = new Game();
+    assert.equal(game.play(O, 0), false);
+    assert.equal(game.board[0], null);
+  });
 
-  // a disconnects mid-game: b steps in.
-  const bPlay = nextState(b, (s) => s.status === 'playing');
-  a.disconnect();
-  await bPlay;
+  it('rejects occupied cells', () => {
+    const game = new Game();
+    game.play(X, 4);
+    assert.equal(game.play(O, 4), false);
+    assert.equal(game.board[4], X);
+  });
 
-  b.disconnect(); c.disconnect();
-  io.close?.();
-  await new Promise((r) => server.close(r));
+  it('rejects invalid cell input', () => {
+    const game = new Game();
+    for (const cell of [-1, 9, 1.5, '0', null, undefined, {}, NaN]) {
+      assert.equal(game.play(X, cell), false, `cell=${String(cell)}`);
+    }
+    assert.deepEqual(game.board, Array(9).fill(null));
+  });
+
+  it('ends on a win and rejects further moves', () => {
+    const game = new Game();
+    [[X, 0], [O, 3], [X, 1], [O, 4], [X, 2]].forEach(([m, c]) => game.play(m, c));
+    assert.equal(game.result, X);
+    assert.equal(game.isOver, true);
+    assert.equal(game.play(O, 5), false);
+  });
+
+  it('toJSON returns a copy of the board', () => {
+    const game = new Game();
+    game.toJSON().board[0] = X;
+    assert.equal(game.board[0], null);
+  });
 });

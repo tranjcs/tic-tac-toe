@@ -2,17 +2,18 @@
   "name": "tic-tac-toe",
   "version": "1.0.0",
   "description": "Two-player tic-tac-toe over Socket.IO with a waiting line",
-  "main": "server.js",
+  "main": "src/index.js",
   "scripts": {
-    "start": "node server.js",
-    "test": "node --test --test-force-exit"
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test",
+    "lint": "eslint ."
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tranjcs/tic-tac-toe.git"
   },
-  "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/tranjcs/tic-tac-toe/issues"
   },
@@ -22,6 +23,13 @@
     "socket.io": "^4.8.4"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
     "socket.io-client": "^4.8.4"
-  }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "private": true
 }
