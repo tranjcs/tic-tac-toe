@@ -1,7 +1,9 @@
 name: CI
 
+# Pull requests are tested on every push to them; main is tested again after each merge.
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:

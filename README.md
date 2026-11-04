@@ -141,7 +141,7 @@ npm test       # run all tests
 npm run lint   # run ESLint
 ```
 
-CI runs lint and tests on Node 22 and 24 for every push and pull request.
+CI runs lint and tests on Node 22 and 24 on every pull request and on every push to `main`.
 
 ### Branches and pull requests
 
