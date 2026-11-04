@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tic-Tac-Toe</title>
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 24px 16px; background: #f4f4f7; color: #222; }
+    h1 { margin: 0 0 8px; }
+    #status { font-size: 1.2rem; margin: 8px 0 4px; min-height: 1.5em; text-align: center; }
+    #sub { color: #666; margin-bottom: 16px; min-height: 1.2em; }
+    #board { display: grid; grid-template-columns: repeat(3, 96px); grid-template-rows: repeat(3, 96px); gap: 6px; }
+    .cell { background: #fff; border: none; border-radius: 8px; font-size: 3rem; font-weight: bold; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+    .cell:disabled { cursor: default; }
+    .cell.X { color: #2563eb; }
+    .cell.O { color: #dc2626; }
+    #board.hidden { opacity: .35; }
+  </style>
+</head>
+<body>
+  <h1>Tic-Tac-Toe</h1>
+  <div id="status">Connecting…</div>
+  <div id="sub"></div>
+  <div id="board" class="hidden"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const boardEl = document.getElementById('board');
+    const statusEl = document.getElementById('status');
+    const subEl = document.getElementById('sub');
+    const cells = [];
+    for (let i = 0; i < 9; i++) {
+      const b = document.createElement('button');
+      b.className = 'cell';
+      b.addEventListener('click', () => socket.emit('move', i));
+      boardEl.appendChild(b);
+      cells.push(b);
+    }
+
+    socket.on('state', (s) => {
+      const board = s.board || Array(9).fill(null);
+      const myTurn = s.status === 'playing' && !s.result && s.turn === s.symbol;
+      cells.forEach((c, i) => {
+        c.textContent = board[i] || '';
+        c.className = 'cell ' + (board[i] || '');
+        c.disabled = !myTurn || !!board[i];
+      });
+      boardEl.classList.toggle('hidden', s.status === 'waiting');
+
+      if (s.status === 'waiting') {
+        statusEl.textContent = 'Waiting for another player…';
+        subEl.textContent = '';
+      } else if (s.status === 'in-line') {
+        statusEl.textContent = s.position === 1 ? "You're next in line" : `You're #${s.position} in line`;
+        subEl.textContent = s.result ? resultText(s.result, null) : `Watching: ${s.turn}'s turn`;
+      } else {
+        statusEl.textContent = s.result ? resultText(s.result, s.symbol) : (myTurn ? 'Your turn' : "Opponent's turn");
+        subEl.textContent = `You are ${s.symbol}` + (s.result ? ' — next game starting soon' : '');
+      }
+    });
+
+    function resultText(result, me) {
+      if (result === 'draw') return "It's a draw!";
+      if (!me) return `${result} wins!`;
+      return result === me ? 'You win! 🎉' : 'You lose.';
+    }
+
+    socket.on('disconnect', () => { statusEl.textContent = 'Disconnected from server'; subEl.textContent = ''; });
+  </script>
+</body>
+</html>
