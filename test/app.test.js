@@ -57,6 +57,13 @@ describe('app (Socket.IO integration)', () => {
     assert.match(await res.text(), /<title>Tic-Tac-Toe<\/title>/);
   });
 
+  it('serves the privacy page, linked from the game page', async () => {
+    const res = await fetch(`${url}/privacy.html`);
+    assert.equal(res.status, 200);
+    assert.match(await res.text(), /Google Analytics/);
+    assert.match(await (await fetch(url)).text(), /href="\/privacy.html"/);
+  });
+
   it('serves client config with analytics off by default', async () => {
     const res = await fetch(`${url}/config.js`);
     assert.equal(res.status, 200);

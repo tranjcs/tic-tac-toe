@@ -102,8 +102,10 @@ Build these in **Explore** (free-form reports). Device category, browser, OS and
 Google Consent Mode is on. For visitors in the EEA, the UK and Switzerland, analytics storage
 starts as **denied**: GA sends cookieless pings and sets no cookies, and Google models the missing
 data. Elsewhere analytics cookies are used. Advertising storage and personalization are denied everywhere.
-There's no consent banner, so EU/UK numbers will be less precise. Mention Google Analytics in your
-privacy notice.
+There's no consent banner, so EU/UK numbers will be less precise.
+
+The privacy notice at `/privacy.html` (linked from the game page) describes this. Update it if you
+change what's collected.
 
 ## Project structure
 
@@ -121,6 +123,7 @@ scripts/
   map-domain.sh             Point a custom domain (ttt.code-brew.app) at the service
 public/
   index.html     Game page
+  privacy.html   Privacy notice (what's collected, Google Analytics, cookies)
   css/style.css  Styles (light and dark mode)
   js/client.js   Browser client (also reports game events to analytics)
   js/analytics.js  Google Analytics loader (off unless GA_MEASUREMENT_ID is set)
