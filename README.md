@@ -52,12 +52,23 @@ The server is authoritative: it validates every move, so clients can't cheat.
 
 ## Analytics
 
-The game reports to Google Analytics 4 when `GA_MEASUREMENT_ID` is set. Without it (local runs,
-tests) no analytics script loads and nothing is sent.
+The game reports to Google Analytics 4 when `GA_MEASUREMENT_ID` is set. Google Analytics doesn't load
+at all (nothing is sent to Google) when:
+
+- `GA_MEASUREMENT_ID` isn't set (local runs, tests);
+- the browser sends **Global Privacy Control** or **Do Not Track**;
+- the visitor looks like they're in the **EEA, the UK or Switzerland**, judged by the browser's time zone
+  (all `Europe/*` zones plus EU islands and overseas regions; an unknown time zone also counts). This
+  avoids sending European visitors' data to Google at all. As a backstop, Consent Mode still denies
+  analytics cookies in those regions by IP, for visitors whose time zone says otherwise.
+
+So the numbers cover visitors outside Europe who haven't opted out.
 
 **Collected automatically by GA4:** page views, sessions, device category, operating system, browser,
 screen resolution, language, country/region (approximate, from the IP address, which GA4 doesn't store),
-and the referring site. The game adds the **viewport size** (`viewport_size`, e.g. `390x844`) to the page view.
+and the referring site. Turn off **Admin → Data collection and modification → Data collection →
+Granular location and device data collection** so GA doesn't record the city either; the privacy page
+says country and region only. That setting can also drop some device detail (such as device model).
 
 **Game events** (sent by each player's browser; spectators send none):
 
@@ -85,7 +96,7 @@ player who left (`left`, `hidden`, `idle`, `kicked` or `disconnected`) and by th
    Actions logs: it's public anyway, since every visitor's browser receives it.
    The service keeps the value across later deploys.
 3. In GA, **Admin → Custom definitions**, register these event-scoped **custom dimensions**:
-   `viewport_size`, `outcome`, `result`, `opening_move`, `cell_type`, `reason`, `came_from`, `mark`, `timed_out`,
+   `outcome`, `result`, `opening_move`, `cell_type`, `reason`, `came_from`, `mark`, `timed_out`,
    and these **custom metrics**: `duration_sec` (unit: seconds), `wait_sec` (seconds), `total_moves`, `moves_made`.
    Data is only broken down by a parameter from the moment it's registered.
 
@@ -126,10 +137,10 @@ isn't backfilled, so turn it on early. Storage for a game this size fits in BigQ
 
 ### Consent
 
-Google Consent Mode is on. For visitors in the EEA, the UK and Switzerland, analytics storage
-starts as **denied**: GA sends cookieless pings and sets no cookies, and Google models the missing
-data. Elsewhere analytics cookies are used. Advertising storage and personalization are denied everywhere.
-There's no consent banner, so EU/UK numbers will be less precise.
+Visitors who appear to be in the EEA, the UK or Switzerland, or who send Global Privacy Control or
+Do Not Track, don't load Google Analytics at all, so there's no consent banner. Elsewhere GA sets its
+analytics cookies. Advertising storage and personalization are denied everywhere, and Google Consent Mode
+keeps analytics cookies off for European visitors whose time zone doesn't give them away.
 
 The privacy notice at `/privacy.html` (linked from the game page) describes this. Update it if you
 change what's collected.
