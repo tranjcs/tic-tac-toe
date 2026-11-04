@@ -49,7 +49,8 @@ src/
   constants.js   Shared enums: marks, statuses, event names
   config.js      Environment-based configuration
 scripts/
-  deploy-cloudrun.sh  Build and deploy to Cloud Run
+  deploy-cloudrun.sh        Build and deploy to Cloud Run
+  setup-github-deploy.sh    One-time setup for the GitHub "Deploy to dev" button
 public/
   index.html     Game page
   css/style.css  Styles (light and dark mode)
@@ -93,6 +94,32 @@ mid-game for that long forfeits. Worst case, a connection held open all month co
 
 Set a budget alert as a safety net: in the Google Cloud console, go to **Billing → Budgets & alerts**
 and create a budget of a few dollars with email alerts.
+
+### Deploy to dev from GitHub (one click)
+
+The **Deploy to dev** workflow (Actions → Deploy to dev → **Run workflow**) runs the tests on the
+branch you pick, builds the image, and deploys it to Cloud Run. It only runs when you press the button.
+
+GitHub logs in to Google Cloud with [Workload Identity Federation](https://github.com/google-github-actions/auth#preferred-direct-workload-identity-federation),
+so no key is stored anywhere. Google only accepts logins from this repository's `dev` environment.
+Project settings live in that GitHub environment, not in the code.
+
+One-time setup:
+
+1. Create the deploy account and identity provider (safe to rerun):
+
+   ```bash
+   PROJECT_ID=your-project-id ./scripts/setup-github-deploy.sh
+   ```
+
+   It grants the deploy account only `run.developer`, write access to the `tic-tac-toe` image
+   repository, and permission to deploy as the service's runtime account.
+
+2. In GitHub, go to **Settings → Environments → New environment**, name it `dev`, and add the four
+   variables the script prints: `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVIDER`, `GCP_DEPLOY_SA`.
+   Optionally, restrict which branches can deploy, or require your approval for each deploy.
+
+3. Go to **Actions → Deploy to dev → Run workflow**.
 
 ### Run with Docker locally
 
