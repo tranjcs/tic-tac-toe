@@ -1,0 +1,49 @@
+# Dependabot version updates
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+updates:
+  # npm dependencies (package.json / package-lock.json)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      # Batch minor/patch bumps of dev tooling into one PR.
+      dev-dependencies:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      # Batch minor/patch bumps of runtime deps into one PR.
+      production-dependencies:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+
+  # GitHub Actions used in .github/workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+
+  # Base image in the Dockerfile
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    ignore:
+      # Stay on the Node major declared in package.json "engines";
+      # bump it deliberately rather than via Dependabot.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "docker"
