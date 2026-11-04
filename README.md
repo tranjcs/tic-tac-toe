@@ -2,6 +2,10 @@
 
 A simple real-time tic-tac-toe game for two players, built with Node.js, Express and Socket.IO.
 
+**Play it:** https://tic-tac-toe-2vsyooeshq-uc.a.run.app (open it in two tabs, or send the link to a friend)
+
+The first visit after a quiet spell can take a few seconds while the server starts up.
+
 ## Run
 
 Requires Node.js 22 or newer.
