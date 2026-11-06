@@ -1,0 +1,537 @@
+/* The game page: card, matchup, status, timer, board and waiting line.
+ * Each component's narrow-phone, landscape and forced-colour rules sit right after it. */
+
+/* The whole screen turns green when it's this player's move. */
+body.my-turn {
+  background: var(--turn-bg);
+}
+
+body.my-turn .status {
+  color: var(--turn-accent);
+  font-weight: 700;
+}
+
+body.my-turn .board {
+  box-shadow: 0 0 0 4px var(--turn-accent);
+}
+
+/* ---------- Game card ---------- */
+
+.game-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.card__header {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.15rem, 5vw, 1.35rem);
+  letter-spacing: -0.01em;
+}
+
+.title__x { color: var(--x); }
+.title__o { color: var(--o); margin-right: 6px; }
+
+.me {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* Landscape: info in a column on the left, board on the right. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .game-card {
+    display: grid;
+    /* Info column: up to 300px, but leave room for the board on small landscape phones. */
+    grid-template-columns:
+      min(300px, 100vw - var(--board-size) - 2 * var(--card-pad) - 2 * var(--page-pad) - var(--safe-x) - 20px)
+      auto;
+    /* Spacer rows top and bottom take the board's extra height, keeping the info together. */
+    grid-template-rows: 1fr repeat(5, auto) 1fr;
+    column-gap: 20px;
+  }
+
+  .game-card > :not(.board-wrap) {
+    grid-column: 1;
+  }
+
+  .card__header { grid-row: 2; }
+  .matchup { grid-row: 3; }
+  .status { grid-row: 4; }
+  .detail { grid-row: 5; }
+  .turn-timer { grid-row: 6; }
+
+  .board-wrap {
+    grid-column: 2;
+    grid-row: 1 / -1;
+  }
+
+  .card__header {
+    margin-bottom: 8px;
+  }
+}
+
+/* ---------- Matchup scoreboard ---------- */
+
+.matchup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+}
+
+.matchup__vs {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.matchup__player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--cell-bg);
+  transition: box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.matchup__player--O {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+/* Your own chip: name in bold with a small underline in your mark's colour. */
+.matchup__player--you .matchup__name {
+  font-weight: 800;
+  text-decoration: underline 2px;
+  text-underline-offset: 3px;
+}
+
+.matchup__player--you.matchup__player--X .matchup__name { text-decoration-color: var(--x); }
+.matchup__player--you.matchup__player--O .matchup__name { text-decoration-color: var(--o); }
+
+.matchup__player--turn.matchup__player--X {
+  background: var(--x-soft);
+  box-shadow: 0 0 0 2px var(--x);
+}
+
+.matchup__player--turn.matchup__player--O {
+  background: var(--o-soft);
+  box-shadow: 0 0 0 2px var(--o);
+}
+
+.matchup__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 359px) {
+  .matchup {
+    gap: 6px;
+  }
+
+  .matchup__player {
+    padding: 5px 8px;
+  }
+
+  .matchup__player .avatar {
+    display: none;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .matchup {
+    gap: 6px;
+  }
+
+  .matchup__player {
+    gap: 6px;
+    padding: 4px 8px 4px 4px;
+  }
+
+  .matchup__player--O {
+    padding: 4px 4px 4px 8px;
+  }
+
+  .matchup__player .avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 0.75rem;
+  }
+
+  .matchup__name {
+    font-size: 0.85rem;
+  }
+}
+
+@media (forced-colors: active) {
+  .matchup__player {
+    border: 1px solid CanvasText;
+  }
+
+  .matchup__player--turn {
+    outline: 3px solid Highlight;
+  }
+}
+
+/* ---------- Status + timer ---------- */
+
+.status {
+  min-height: 1.5em;
+  margin: 14px 0 2px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.detail {
+  min-height: 1.2em;
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.turn-timer {
+  width: var(--board-size);
+  max-width: 100%;
+  margin-bottom: 14px;
+}
+
+.timer {
+  min-height: 1.2em;
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* Keep the space while hidden so the board doesn't jump between turns. */
+.timer[hidden],
+.timer-bar[hidden] {
+  display: block;
+  visibility: hidden;
+}
+
+.timer-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cell-bg);
+  overflow: hidden;
+}
+
+.timer-bar__fill {
+  --progress: 1;
+  height: 100%;
+  width: calc(var(--progress) * 100%);
+  border-radius: inherit;
+  background: var(--turn-accent);
+  transition: width 0.25s linear, background-color 0.3s ease;
+}
+
+.timer--urgent {
+  color: var(--o);
+  font-weight: 700;
+}
+
+.timer-bar--urgent .timer-bar__fill {
+  background: var(--o);
+  animation: timer-pulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes timer-pulse {
+  from { opacity: 1; }
+  to { opacity: 0.5; }
+}
+
+@media (max-width: 359px) {
+  .status {
+    font-size: 1.05rem;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .status {
+    margin-top: 10px;
+  }
+
+  .turn-timer {
+    width: 100%;
+    margin-bottom: 0;
+  }
+}
+
+@media (forced-colors: active) {
+  .timer-bar {
+    border: 1px solid CanvasText;
+  }
+
+  .timer-bar__fill {
+    background: Highlight;
+  }
+}
+
+/* ---------- Board ---------- */
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, var(--cell-size));
+  grid-template-rows: repeat(3, var(--cell-size));
+  gap: var(--gap);
+  padding: var(--gap);
+  border-radius: calc(var(--cell-radius) + var(--gap));
+  background: var(--border);
+  transition: box-shadow 0.25s ease, opacity 0.25s ease;
+}
+
+.board-wrap {
+  position: relative;
+}
+
+/* Covers the board while watching from the line, so it's clear you can't move. */
+.spectate-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: calc(var(--cell-radius) + var(--gap));
+  background: var(--overlay-bg);
+  pointer-events: none;
+}
+
+.spectate-overlay[hidden] {
+  display: none;
+}
+
+.spectate-overlay__label {
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--fg);
+  font-weight: 700;
+  box-shadow: var(--shadow);
+}
+
+.board--inactive {
+  opacity: 0.35;
+}
+
+.cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  border-radius: var(--cell-radius);
+  background: var(--cell-bg);
+  color: var(--fg);
+  cursor: pointer;
+  box-shadow: var(--cell-shadow);
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+/* Hover effects only where there is a real pointer; on touch screens they'd stick after a tap. */
+@media (hover: hover) and (pointer: fine) {
+  .cell:not(:disabled):hover {
+    background: var(--cell-hover);
+    transform: translateY(-1px);
+  }
+
+  .cell:not(:disabled):hover .cell__preview {
+    opacity: 0.25;
+  }
+}
+
+.cell:not(:disabled):active {
+  background: var(--cell-hover);
+}
+
+.cell:disabled {
+  cursor: default;
+}
+
+.cell:focus-visible {
+  outline: 3px solid var(--x);
+  outline-offset: 2px;
+}
+
+.cell--X { color: var(--x); }
+.cell--O { color: var(--o); }
+
+.mark {
+  width: 62%;
+  height: 62%;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 13;
+  stroke-linecap: round;
+}
+
+/* Faint preview of your own mark on empty cells during your turn. */
+.cell__preview {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.cell__preview--X { color: var(--x); }
+.cell__preview--O { color: var(--o); }
+
+.cell:not(:disabled):focus-visible .cell__preview {
+  opacity: 0.25;
+}
+
+/* A freshly placed mark draws itself in, then settles with a small pop. */
+.cell--new .mark path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: mark-draw 0.28s ease-out forwards;
+}
+
+.cell--new .mark path:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.cell--new .mark {
+  animation: mark-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes mark-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes mark-pop {
+  0% { transform: scale(0.6); }
+  100% { transform: scale(1); }
+}
+
+@media (forced-colors: active) {
+  .cell {
+    border: 1px solid CanvasText;
+  }
+
+  .cell:disabled {
+    color: CanvasText;
+  }
+
+  body.my-turn .board,
+  .cell--win {
+    outline: 3px solid Highlight;
+  }
+}
+
+/* ---------- Waiting line ---------- */
+
+.line h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+.line__count {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--cell-bg);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.line__count:empty {
+  display: none;
+}
+
+.line__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: var(--cell-bg);
+}
+
+.line__pos {
+  width: 1.5em;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.line__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.line__you {
+  font-weight: 600;
+  background: var(--highlight);
+}
+
+.line__empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.line__empty[hidden],
+.line__list[hidden] {
+  display: none;
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .line {
+    width: min(100%, 640px);
+    padding: 10px 14px;
+  }
+
+  .line__list {
+    flex-flow: row wrap;
+  }
+}
+
+@media (forced-colors: active) {
+  .line__item {
+    border: 1px solid CanvasText;
+  }
+}

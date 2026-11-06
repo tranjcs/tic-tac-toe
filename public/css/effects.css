@@ -1,269 +1,5 @@
-:root {
-  --bg: #f4f4f7;
-  --fg: #222;
-  --muted: #666;
-  --cell-bg: #fff;
-  --x: #2563eb;
-  --o: #dc2626;
-  --panel-bg: #fff;
-  --highlight: #fef3c7;
-  --turn-bg: #bbf7d0;
-  --turn-accent: #16a34a;
-  --overlay-bg: rgba(24, 24, 27, 0.4);
-  --cell-size: 96px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #18181b;
-    --fg: #f4f4f5;
-    --muted: #a1a1aa;
-    --cell-bg: #27272a;
-    --x: #60a5fa;
-    --o: #f87171;
-    --panel-bg: #27272a;
-    --highlight: #3f3a1e;
-    --turn-bg: #14532d;
-    --turn-accent: #4ade80;
-    --overlay-bg: rgba(0, 0, 0, 0.5);
-  }
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  padding: 24px 16px;
-  font-family: system-ui, sans-serif;
-  min-height: 100vh;
-  background: var(--bg);
-  color: var(--fg);
-  transition: background-color 0.25s ease;
-}
-
-/* The whole screen turns green when it's this player's move. */
-body.my-turn {
-  background: var(--turn-bg);
-}
-
-body.my-turn .status {
-  color: var(--turn-accent);
-  font-weight: 700;
-}
-
-body.my-turn .board {
-  border-radius: 12px;
-  box-shadow: 0 0 0 4px var(--turn-accent);
-}
-
-main {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-h1 {
-  margin: 0 0 8px;
-}
-
-.status {
-  min-height: 1.5em;
-  margin: 8px 0 4px;
-  font-size: 1.2rem;
-  text-align: center;
-}
-
-.timer {
-  min-height: 1.2em;
-  margin: -8px 0 16px;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-
-/* Keep the line's space while hidden so the board doesn't jump between turns. */
-.timer[hidden] {
-  display: block;
-  visibility: hidden;
-}
-
-.timer--urgent {
-  color: var(--o);
-  font-weight: 700;
-}
-
-.detail {
-  min-height: 1.2em;
-  margin: 0 0 16px;
-  color: var(--muted);
-}
-
-.board {
-  display: grid;
-  grid-template-columns: repeat(3, var(--cell-size));
-  grid-template-rows: repeat(3, var(--cell-size));
-  gap: 6px;
-}
-
-.board-wrap {
-  position: relative;
-}
-
-/* Covers the board while watching from the line, so it's clear you can't move. */
-.spectate-overlay {
-  position: absolute;
-  inset: -6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  background: var(--overlay-bg);
-  pointer-events: none;
-}
-
-.spectate-overlay[hidden] {
-  display: none;
-}
-
-.spectate-overlay__label {
-  padding: 8px 16px;
-  border-radius: 999px;
-  background: var(--panel-bg);
-  color: var(--fg);
-  font-weight: 700;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-}
-
-.board--inactive {
-  opacity: 0.35;
-}
-
-.cell {
-  border: none;
-  border-radius: 8px;
-  background: var(--cell-bg);
-  color: var(--fg);
-  font-size: 3rem;
-  font-weight: bold;
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-}
-
-.cell:disabled {
-  cursor: default;
-}
-
-.cell:focus-visible {
-  outline: 3px solid var(--x);
-  outline-offset: 2px;
-}
-
-.cell--X {
-  color: var(--x);
-}
-
-.cell--O {
-  color: var(--o);
-}
-
-.me {
-  margin: 0 0 4px;
-  font-weight: 600;
-}
-
-.matchup {
-  min-height: 1.4em;
-  margin: 4px 0;
-  text-align: center;
-}
-
-.matchup__player {
-  padding: 2px 6px;
-  border-radius: 6px;
-}
-
-.matchup__player--turn {
-  background: var(--highlight);
-  font-weight: 600;
-}
-
-.site-footer {
-  margin-top: 24px;
-  font-size: 0.85rem;
-}
-
-.site-footer a,
-.privacy a {
-  color: inherit;
-}
-
-.site-footer a {
-  color: var(--muted);
-}
-
-/* Privacy page: plain reading column instead of the centered game layout. */
-main.privacy {
-  display: block;
-  max-width: 640px;
-  margin: 0 auto;
-  line-height: 1.55;
-}
-
-.privacy h2 {
-  margin: 28px 0 8px;
-  font-size: 1.25rem;
-}
-
-.privacy h3 {
-  margin: 20px 0 6px;
-  font-size: 1rem;
-}
-
-.privacy__updated {
-  color: var(--muted);
-  margin-top: 0;
-}
-
-.line {
-  width: 100%;
-  max-width: 320px;
-  margin-top: 24px;
-  padding: 12px 16px;
-  border-radius: 8px;
-  background: var(--panel-bg);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-}
-
-.line h2 {
-  margin: 0 0 8px;
-  font-size: 1rem;
-}
-
-.line__list {
-  margin: 0;
-  padding-left: 1.5em;
-}
-
-.line__list li {
-  padding: 2px 0;
-}
-
-.line__you {
-  font-weight: 600;
-}
-
-.line__empty {
-  margin: 0;
-  color: var(--muted);
-}
-
-.line__empty[hidden],
-.line__list[hidden] {
-  display: none;
-}
-
-/* ---------- Win / lose animations ----------
+/* Win / lose animations and confetti, plus the reduced-motion overrides for the whole page.
+ * Load this last so the reduced-motion block can switch off animations from game.css.
  * body.game-won / body.game-lost are set by client.js for the two players when
  * a game ends with a winner. Cells in the winning line get .cell--win.
  */
@@ -309,7 +45,6 @@ body.game-won .status {
 }
 
 body.game-won .board {
-  border-radius: 12px;
   animation: win-board 0.9s ease-out both;
 }
 
@@ -432,6 +167,16 @@ body.game-lost .cell--win {
 
 /* Keep the colours, drop the movement, for people who ask for less motion. */
 @media (prefers-reduced-motion: reduce) {
+  .cell,
+  .cell--new .mark,
+  .cell--new .mark path,
+  .timer-bar__fill,
+  .timer-bar--urgent .timer-bar__fill {
+    animation: none;
+    transition: none;
+    stroke-dashoffset: 0;
+  }
+
   .cell--win,
   body.game-won .status,
   body.game-won .board,

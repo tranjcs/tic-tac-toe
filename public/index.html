@@ -2,27 +2,39 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#eef0f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111318" media="(prefers-color-scheme: dark)">
   <title>Tic-Tac-Toe</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/game.css">
+  <link rel="stylesheet" href="/css/effects.css">
 </head>
 <body>
   <main>
-    <h1>Tic-Tac-Toe</h1>
-    <p id="me" class="me"></p>
-    <p id="matchup" class="matchup" aria-label="Current match"></p>
-    <p id="status" class="status" role="status" aria-live="polite">Connecting…</p>
-    <p id="detail" class="detail"></p>
-    <p id="timer" class="timer" role="timer" hidden></p>
-    <div class="board-wrap">
-      <div id="board" class="board board--inactive" role="grid" aria-label="Game board"></div>
-      <div id="spectate-overlay" class="spectate-overlay" hidden>
-        <span class="spectate-overlay__label">👀 Spectating</span>
+    <section class="card game-card">
+      <header class="card__header">
+        <h1 class="title"><span class="title__x">X</span><span class="title__o">O</span> Tic-Tac-Toe</h1>
+        <p id="me" class="me"></p>
+      </header>
+      <div id="matchup" class="matchup" aria-label="Current match"></div>
+      <p id="status" class="status" role="status" aria-live="polite">Connecting…</p>
+      <p id="detail" class="detail"></p>
+      <div class="turn-timer">
+        <p id="timer" class="timer" role="timer" hidden></p>
+        <div id="timer-bar" class="timer-bar" aria-hidden="true" hidden><div id="timer-fill" class="timer-bar__fill"></div></div>
       </div>
-    </div>
+      <div class="board-wrap">
+        <div id="board" class="board board--inactive" role="grid" aria-label="Game board"></div>
+        <div id="spectate-overlay" class="spectate-overlay" hidden>
+          <span class="spectate-overlay__label">👀 Spectating</span>
+        </div>
+      </div>
+    </section>
 
-    <section class="line" aria-labelledby="line-heading">
-      <h2 id="line-heading">Waiting in line</h2>
+    <section class="card line" aria-labelledby="line-heading">
+      <h2 id="line-heading">Waiting in line <span id="line-count" class="line__count"></span></h2>
       <ol id="line-list" class="line__list"></ol>
       <p id="line-empty" class="line__empty">Nobody waiting</p>
     </section>

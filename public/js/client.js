@@ -37,6 +37,9 @@
   const statusEl = el('status');
   const detailEl = el('detail');
   const timerEl = el('timer');
+  const timerBarEl = el('timer-bar');
+  const timerFillEl = el('timer-fill');
+  const lineCountEl = el('line-count');
   const lineListEl = el('line-list');
   const lineEmptyEl = el('line-empty');
   const spectateOverlayEl = el('spectate-overlay');
@@ -62,6 +65,40 @@
     boardEl.appendChild(cell);
     return cell;
   });
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  // pathLength="1" lets the CSS draw-in animation use the same dash values for every stroke.
+  const MARK_SHAPES = {
+    X: [['path', { d: 'M20 20 L80 80' }], ['path', { d: 'M80 20 L20 80' }]],
+    // A path rather than <circle>: older Safari ignores pathLength on basic shapes.
+    O: [['path', { d: 'M50 18 A32 32 0 1 1 49.99 18 Z' }]],
+  };
+
+  /** An SVG drawing of X or O, coloured by the surrounding text colour. */
+  function markSvg(mark, className = 'mark') {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('class', className);
+    svg.setAttribute('aria-hidden', 'true');
+    for (const [tag, attrs] of MARK_SHAPES[mark]) {
+      const shape = document.createElementNS(SVG_NS, tag);
+      Object.entries(attrs).forEach(([key, value]) => shape.setAttribute(key, value));
+      shape.setAttribute('pathLength', '1');
+      svg.appendChild(shape);
+    }
+    return svg;
+  }
+
+  function avatar(name, mark) {
+    const span = document.createElement('span');
+    span.className = mark ? `avatar avatar--${mark}` : 'avatar';
+    span.textContent = (name || '?').trim().charAt(0) || '?';
+    return span;
+  }
+
+  // What each cell showed last render, so only newly placed marks animate in.
+  let shownBoard = Array(BOARD_SIZE).fill(null);
+  let shownGameId = null;
 
   function winningCells(board) {
     const line = WINNING_LINES.find(([a, b, c]) => board[a] && board[a] === board[b] && board[a] === board[c]);
@@ -92,26 +129,41 @@
   // client clock doesn't matter; it enforces the limit itself.
   const TURN_URGENT_SECONDS = 5;
   let turnTicker = null;
+  // The server only sends time left, so the bar's full length is the most seen this turn.
+  let turnKey = null;
+  let turnTotalMs = 0;
 
   function stopCountdown() {
     clearInterval(turnTicker);
     turnTicker = null;
     timerEl.hidden = true;
+    timerBarEl.hidden = true;
   }
 
   function startCountdown(state) {
     stopCountdown();
     if (typeof state.turnRemainingMs !== 'number') return;
     const deadline = performance.now() + state.turnRemainingMs;
+    const key = `${state.gameId}:${(state.moves || []).length}`;
+    if (key !== turnKey) {
+      turnKey = key;
+      turnTotalMs = 0;
+    }
+    turnTotalMs = Math.max(turnTotalMs, state.turnRemainingMs);
     const mine = state.status === Status.PLAYING && state.turn === state.mark;
     const whose = mine ? 'You have' : `${state.players[state.turn]} has`;
     const tick = () => {
-      const seconds = Math.max(0, Math.ceil((deadline - performance.now()) / 1000));
+      const leftMs = Math.max(0, deadline - performance.now());
+      const seconds = Math.ceil(leftMs / 1000);
+      const urgent = seconds <= TURN_URGENT_SECONDS;
       timerEl.textContent = `⏱ ${whose} ${seconds}s to move`;
-      timerEl.classList.toggle('timer--urgent', seconds <= TURN_URGENT_SECONDS);
+      timerEl.classList.toggle('timer--urgent', urgent);
+      timerBarEl.classList.toggle('timer-bar--urgent', urgent);
+      timerFillEl.style.setProperty('--progress', turnTotalMs ? (leftMs / turnTotalMs).toFixed(3) : '0');
     };
     tick();
     timerEl.hidden = false;
+    timerBarEl.hidden = false;
     turnTicker = setInterval(tick, 250);
   }
 
@@ -140,23 +192,49 @@
     matchupEl.replaceChildren();
     if (!state.players) return;
     const player = (mark) => {
-      const span = document.createElement('span');
-      span.className = 'matchup__player';
-      if (!state.result && state.turn === mark) span.classList.add('matchup__player--turn');
-      span.textContent = `${state.players[mark]} (${mark})`;
-      return span;
+      const chip = document.createElement('div');
+      chip.className = `matchup__player matchup__player--${mark}`;
+      if (!state.result && state.turn === mark) chip.classList.add('matchup__player--turn');
+      const name = document.createElement('span');
+      name.className = 'matchup__name';
+      name.textContent = state.players[mark];
+      chip.title = `${state.players[mark]} plays ${mark}`;
+      chip.append(avatar(mark, mark), name);
+      // Your own chip is marked by CSS only, so names never get squeezed by a label.
+      if (state.status === Status.PLAYING && state.mark === mark) {
+        chip.classList.add('matchup__player--you');
+        chip.title += ' (you)';
+      }
+      return chip;
     };
-    matchupEl.append(player('X'), ' vs ', player('O'));
+    const vs = document.createElement('span');
+    vs.className = 'matchup__vs';
+    vs.textContent = 'vs';
+    matchupEl.append(player('X'), vs, player('O'));
   }
 
   function renderLine(state) {
-    const items = state.line.map((name) => {
+    const items = state.line.map((name, index) => {
       const li = document.createElement('li');
-      li.textContent = name === state.name ? `${name} (you)` : name;
-      if (name === state.name) li.className = 'line__you';
+      li.className = 'line__item';
+      const pos = document.createElement('span');
+      pos.className = 'line__pos';
+      pos.textContent = `${index + 1}.`;
+      const label = document.createElement('span');
+      label.className = 'line__name';
+      label.textContent = name;
+      li.append(pos, avatar(name), label);
+      if (name === state.name) {
+        li.classList.add('line__you');
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.textContent = 'You';
+        li.appendChild(tag);
+      }
       return li;
     });
     lineListEl.replaceChildren(...items);
+    lineCountEl.textContent = items.length ? String(items.length) : '';
     lineListEl.hidden = items.length === 0;
     lineEmptyEl.hidden = items.length > 0;
   }
@@ -257,14 +335,25 @@
     const board = state.board || Array(BOARD_SIZE).fill(null);
     const canMove = state.status === Status.PLAYING && !state.result && state.turn === state.mark;
     const winners = winningCells(board);
+    // A new game (or first render) shows its board as-is; only later moves animate.
+    const sameGame = state.gameId !== undefined && state.gameId === shownGameId;
     cells.forEach((cell, index) => {
       const mark = board[index];
-      cell.textContent = mark || '';
+      const isNew = Boolean(mark) && sameGame && shownBoard[index] !== mark;
+      if (mark !== shownBoard[index] || !sameGame) {
+        cell.replaceChildren(...(mark ? [markSvg(mark)] : []));
+      }
       cell.className = mark ? `cell cell--${mark}` : 'cell';
+      if (isNew) cell.classList.add('cell--new');
       if (winners.has(index)) cell.classList.add('cell--win');
       cell.disabled = !canMove || Boolean(mark);
+      if (!mark) {
+        cell.replaceChildren(...(canMove ? [markSvg(state.mark, `mark cell__preview cell__preview--${state.mark}`)] : []));
+      }
       cell.setAttribute('aria-label', `Cell ${index + 1}: ${mark || 'empty'}`);
     });
+    shownBoard = board.slice();
+    shownGameId = state.gameId;
     boardEl.classList.toggle('board--inactive', state.status === Status.WAITING);
     document.body.classList.toggle('my-turn', canMove);
     spectateOverlayEl.hidden = state.status !== Status.IN_LINE;
@@ -307,6 +396,7 @@
     lineListEl.replaceChildren();
     lineListEl.hidden = true;
     lineEmptyEl.hidden = true;
+    lineCountEl.textContent = '';
   });
 
   // gtag sends with sendBeacon, so this still goes out as the page unloads.

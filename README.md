@@ -162,7 +162,10 @@ scripts/
 public/
   index.html     Game page
   privacy.html   Privacy notice (what's collected, Google Analytics, cookies)
-  css/style.css  Styles (light and dark mode)
+  css/base.css     Shared styles: colours, light/dark mode, layout sizes, page frame
+  css/game.css     Game page: matchup, timer, board, waiting line (with their phone/landscape rules)
+  css/effects.css  Win/lose animations, confetti, reduced-motion overrides (load last)
+  css/privacy.css  Privacy page reading column
   js/client.js   Browser client (also reports game events to analytics)
   js/analytics.js  Google Analytics loader (off unless GA_MEASUREMENT_ID is set)
 test/
