@@ -1,0 +1,27 @@
+/* Privacy page: plain reading column instead of the centered game layout. */
+
+main.privacy {
+  display: block;
+  max-width: 640px;
+  margin: 0 auto;
+  line-height: 1.55;
+}
+
+.privacy a {
+  color: inherit;
+}
+
+.privacy h2 {
+  margin: 28px 0 8px;
+  font-size: 1.25rem;
+}
+
+.privacy h3 {
+  margin: 20px 0 6px;
+  font-size: 1rem;
+}
+
+.privacy__updated {
+  color: var(--muted);
+  margin-top: 0;
+}

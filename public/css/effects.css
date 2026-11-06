@@ -1,0 +1,199 @@
+/* Win / lose animations and confetti, plus the reduced-motion overrides for the whole page.
+ * Load this last so the reduced-motion block can switch off animations from game.css.
+ * body.game-won / body.game-lost are set by client.js for the two players when
+ * a game ends with a winner. Cells in the winning line get .cell--win.
+ */
+
+:root {
+  --win-accent: #f59e0b;
+  --win-bg: #fef9c3;
+  --lose-bg: #e4e4e7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --win-accent: #fbbf24;
+    --win-bg: #422006;
+    --lose-bg: #0f0f11;
+  }
+}
+
+/* Winning line: every player sees it pop, staggered across the three cells. */
+.cell--win {
+  position: relative;
+  animation: win-cell-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  box-shadow: 0 0 0 3px currentColor, 0 0 18px currentColor;
+}
+
+@keyframes win-cell-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.25) rotate(-4deg); }
+  70% { transform: scale(0.95) rotate(2deg); }
+  100% { transform: scale(1.08); }
+}
+
+/* --- Win --- */
+body.game-won {
+  background: var(--win-bg);
+}
+
+body.game-won .status {
+  color: var(--win-accent);
+  font-weight: 800;
+  animation: win-status 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    win-glow 1.6s ease-in-out 0.8s infinite alternate;
+}
+
+body.game-won .board {
+  animation: win-board 0.9s ease-out both;
+}
+
+body.game-won .cell--win {
+  animation: win-cell-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    win-cell-pulse 1.2s ease-in-out 0.6s infinite alternate;
+}
+
+@keyframes win-status {
+  0% { transform: scale(0.4) translateY(10px); opacity: 0; }
+  60% { transform: scale(1.35) translateY(-6px); opacity: 1; }
+  100% { transform: scale(1.2); }
+}
+
+@keyframes win-glow {
+  from { text-shadow: 0 0 0 transparent; transform: scale(1.2); }
+  to { text-shadow: 0 0 14px var(--win-accent); transform: scale(1.28); }
+}
+
+@keyframes win-board {
+  0% { box-shadow: 0 0 0 0 var(--win-accent); }
+  50% { box-shadow: 0 0 0 10px var(--win-accent); }
+  100% { box-shadow: 0 0 0 4px var(--win-accent); }
+}
+
+@keyframes win-cell-pulse {
+  from { transform: scale(1.08); filter: brightness(1); }
+  to { transform: scale(1.14); filter: brightness(1.25); }
+}
+
+/* Confetti rains down only for the winner. */
+.confetti {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  display: none;
+}
+
+body.game-won .confetti {
+  display: block;
+}
+
+.confetti__piece {
+  position: absolute;
+  top: -20px;
+  left: var(--x);
+  width: 10px;
+  height: 16px;
+  border-radius: 2px;
+  background: hsl(var(--hue) 90% 55%);
+  opacity: 0;
+  animation: confetti-fall 2.6s cubic-bezier(0.25, 0.6, 0.5, 1) var(--delay) forwards;
+}
+
+.confetti__piece:nth-child(3n) {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+@keyframes confetti-fall {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translate(var(--drift), 105vh) rotate(var(--spin)); opacity: 0; }
+}
+
+/* --- Lose --- */
+body.game-lost {
+  background: var(--lose-bg);
+}
+
+body.game-lost .status {
+  color: var(--muted);
+  animation: lose-status 1s ease-in both;
+}
+
+body.game-lost .board {
+  animation: lose-shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both,
+    lose-fade 0.8s ease-out 0.5s forwards;
+}
+
+/* The opponent's winning line stays vivid while the rest of the board fades. */
+body.game-lost .cell:not(.cell--win) {
+  animation: lose-cell-grey 0.8s ease-out 0.5s forwards;
+}
+
+body.game-lost .cell--win {
+  animation: lose-cell-thud 0.5s ease-out 0.3s both;
+  box-shadow: 0 0 0 3px currentColor;
+}
+
+@keyframes lose-shake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-8px) rotate(-1deg); }
+  40%, 60% { transform: translateX(8px) rotate(1deg); }
+}
+
+@keyframes lose-fade {
+  to { transform: scale(0.96); }
+}
+
+@keyframes lose-cell-grey {
+  to { filter: grayscale(1); opacity: 0.45; }
+}
+
+@keyframes lose-cell-thud {
+  0% { transform: scale(1.2); }
+  60% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+@keyframes lose-status {
+  0% { transform: translateY(-12px); opacity: 0; }
+  50% { transform: translateY(6px) rotate(-2deg); opacity: 1; }
+  75% { transform: translateY(3px) rotate(1deg); }
+  100% { transform: translateY(4px) rotate(0); }
+}
+
+/* Keep the colours, drop the movement, for people who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .cell,
+  .cell--new .mark,
+  .cell--new .mark path,
+  .timer-bar__fill,
+  .timer-bar--urgent .timer-bar__fill {
+    animation: none;
+    transition: none;
+    stroke-dashoffset: 0;
+  }
+
+  .cell--win,
+  body.game-won .status,
+  body.game-won .board,
+  body.game-won .cell--win,
+  body.game-lost .status,
+  body.game-lost .board,
+  body.game-lost .cell--win {
+    animation: none;
+  }
+
+  body.game-won .confetti {
+    display: none;
+  }
+
+  body.game-lost .cell:not(.cell--win) {
+    animation: none;
+    filter: grayscale(1);
+    opacity: 0.45;
+  }
+}
