@@ -70,7 +70,8 @@
   // pathLength="1" lets the CSS draw-in animation use the same dash values for every stroke.
   const MARK_SHAPES = {
     X: [['path', { d: 'M20 20 L80 80' }], ['path', { d: 'M80 20 L20 80' }]],
-    O: [['circle', { cx: 50, cy: 50, r: 32 }]],
+    // A path rather than <circle>: older Safari ignores pathLength on basic shapes.
+    O: [['path', { d: 'M50 18 A32 32 0 1 1 49.99 18 Z' }]],
   };
 
   /** An SVG drawing of X or O, coloured by the surrounding text colour. */
@@ -196,10 +197,14 @@
       if (!state.result && state.turn === mark) chip.classList.add('matchup__player--turn');
       const name = document.createElement('span');
       name.className = 'matchup__name';
-      const you = state.status === Status.PLAYING && state.mark === mark;
-      name.textContent = you ? `${state.players[mark]} (you)` : state.players[mark];
+      name.textContent = state.players[mark];
       chip.title = `${state.players[mark]} plays ${mark}`;
       chip.append(avatar(mark, mark), name);
+      // Your own chip is marked by CSS only, so names never get squeezed by a label.
+      if (state.status === Status.PLAYING && state.mark === mark) {
+        chip.classList.add('matchup__player--you');
+        chip.title += ' (you)';
+      }
       return chip;
     };
     const vs = document.createElement('span');
@@ -222,7 +227,7 @@
       if (name === state.name) {
         li.classList.add('line__you');
         const tag = document.createElement('span');
-        tag.className = 'line__tag';
+        tag.className = 'tag';
         tag.textContent = 'You';
         li.appendChild(tag);
       }

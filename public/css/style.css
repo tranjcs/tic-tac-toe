@@ -20,8 +20,59 @@
   --cell-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
   --radius: 20px;
   --cell-radius: 14px;
-  --cell-size: clamp(76px, 25vw, 120px);
-  --gap: clamp(6px, 2vw, 10px);
+
+  /* Layout sizes. The board is sized to fit both the width and the height of the
+   * screen: --hspace / --vspace are everything around it that also has to fit. */
+  --page-pad: 16px;
+  --card-pad: 20px;
+  --gap: 8px;
+  --cell-max: 124px;
+  --chrome: 240px; /* header, matchup, status and timer above the board */
+  --safe-x: calc(env(safe-area-inset-left, 0px) + env(safe-area-inset-right, 0px));
+  --safe-y: calc(env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
+  --hspace: calc(2 * var(--page-pad) + 2 * var(--card-pad) + 4 * var(--gap) + var(--safe-x));
+  --vspace: calc(2 * var(--page-pad) + 2 * var(--card-pad) + 4 * var(--gap) + var(--chrome) + var(--safe-y));
+  /* vh first for browsers without dvh (which excludes the mobile URL bar). */
+  --cell-size: clamp(56px, min((100vw - var(--hspace)) / 3, (100vh - var(--vspace)) / 3), var(--cell-max));
+  --board-size: calc(3 * var(--cell-size) + 4 * var(--gap));
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --cell-size: clamp(56px, min((100vw - var(--hspace)) / 3, (100dvh - var(--vspace)) / 3), var(--cell-max));
+  }
+}
+
+/* Very narrow phones (320px wide and below). */
+@media (max-width: 359px) {
+  :root {
+    --page-pad: 8px;
+    --card-pad: 12px;
+    --gap: 6px;
+    --radius: 16px;
+    --cell-radius: 10px;
+    --chrome: 220px;
+  }
+}
+
+/* Tablets and big screens: a larger board. */
+@media (min-width: 768px) and (min-height: 820px) {
+  :root {
+    --card-pad: 28px;
+    --gap: 10px;
+    --cell-max: 148px;
+    --chrome: 260px;
+  }
+}
+
+/* Phones on their side and other short screens: info beside the board. */
+@media (orientation: landscape) and (max-height: 560px) {
+  :root {
+    --page-pad: 10px;
+    --card-pad: 14px;
+    --gap: 6px;
+    --chrome: 0px;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -51,12 +102,23 @@
   box-sizing: border-box;
 }
 
+html {
+  min-height: 100%;
+  background: radial-gradient(circle at 50% 0, var(--bg-accent), var(--bg) 70vh) no-repeat, var(--bg);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
-  padding: 24px 16px;
+  padding:
+    max(var(--page-pad), env(safe-area-inset-top, 0px))
+    max(var(--page-pad), env(safe-area-inset-right, 0px))
+    max(var(--page-pad), env(safe-area-inset-bottom, 0px))
+    max(var(--page-pad), env(safe-area-inset-left, 0px));
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   min-height: 100vh;
-  background: radial-gradient(circle at 50% -20%, var(--bg-accent), var(--bg) 60%) fixed, var(--bg);
+  min-height: 100dvh;
   color: var(--fg);
   transition: background-color 0.25s ease;
 }
@@ -82,12 +144,17 @@ main {
   gap: 16px;
 }
 
+main.privacy {
+  gap: 0;
+}
+
 /* ---------- Cards ---------- */
 
 .card {
-  width: 100%;
-  max-width: 440px;
-  padding: 20px;
+  /* As wide as the board, but never so narrow the header and matchup get cramped. */
+  width: max(var(--board-size) + 2 * var(--card-pad), min(100%, 340px));
+  max-width: 100%;
+  padding: var(--card-pad);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--card-bg);
@@ -112,7 +179,7 @@ main {
 
 .title {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: clamp(1.15rem, 5vw, 1.35rem);
   letter-spacing: -0.01em;
 }
 
@@ -160,6 +227,16 @@ main {
   text-align: right;
 }
 
+/* Your own chip: name in bold with a small underline in your mark's colour. */
+.matchup__player--you .matchup__name {
+  font-weight: 800;
+  text-decoration: underline 2px;
+  text-underline-offset: 3px;
+}
+
+.matchup__player--you.matchup__player--X .matchup__name { text-decoration-color: var(--x); }
+.matchup__player--you.matchup__player--O .matchup__name { text-decoration-color: var(--o); }
+
 .matchup__player--turn.matchup__player--X {
   background: var(--x-soft);
   box-shadow: 0 0 0 2px var(--x);
@@ -171,6 +248,7 @@ main {
 }
 
 .matchup__name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -214,7 +292,7 @@ main {
 }
 
 .turn-timer {
-  width: calc(var(--cell-size) * 3 + var(--gap) * 2);
+  width: var(--board-size);
   max-width: 100%;
   margin-bottom: 14px;
 }
@@ -316,8 +394,13 @@ main {
   position: relative;
   display: grid;
   place-items: center;
+  min-width: 0;
   padding: 0;
   border: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
   border-radius: var(--cell-radius);
   background: var(--cell-bg);
   color: var(--fg);
@@ -326,9 +409,20 @@ main {
   transition: background-color 0.15s ease, transform 0.15s ease;
 }
 
-.cell:not(:disabled):hover {
+/* Hover effects only where there is a real pointer; on touch screens they'd stick after a tap. */
+@media (hover: hover) and (pointer: fine) {
+  .cell:not(:disabled):hover {
+    background: var(--cell-hover);
+    transform: translateY(-1px);
+  }
+
+  .cell:not(:disabled):hover .cell__preview {
+    opacity: 0.25;
+  }
+}
+
+.cell:not(:disabled):active {
   background: var(--cell-hover);
-  transform: translateY(-1px);
 }
 
 .cell:disabled {
@@ -365,14 +459,12 @@ main {
 .cell__preview--X { color: var(--x); }
 .cell__preview--O { color: var(--o); }
 
-.cell:not(:disabled):hover .cell__preview,
 .cell:not(:disabled):focus-visible .cell__preview {
   opacity: 0.25;
 }
 
 /* A freshly placed mark draws itself in, then settles with a small pop. */
-.cell--new .mark path,
-.cell--new .mark circle {
+.cell--new .mark path {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   animation: mark-draw 0.28s ease-out forwards;
@@ -454,7 +546,8 @@ main {
   background: var(--highlight);
 }
 
-.line__tag {
+.tag {
+  flex: none;
   margin-left: auto;
   padding: 1px 8px;
   border-radius: 999px;
@@ -472,6 +565,139 @@ main {
 .line__empty[hidden],
 .line__list[hidden] {
   display: none;
+}
+
+/* ---------- Responsive layouts ---------- */
+
+@media (max-width: 359px) {
+  .matchup {
+    gap: 6px;
+  }
+
+  .matchup__player {
+    padding: 5px 8px;
+  }
+
+  .matchup__player .avatar {
+    display: none;
+  }
+
+  .status {
+    font-size: 1.05rem;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  main {
+    gap: 10px;
+  }
+
+  .card {
+    width: auto;
+  }
+
+  .game-card {
+    display: grid;
+    /* Info column: up to 300px, but leave room for the board on small landscape phones. */
+    grid-template-columns:
+      min(300px, 100vw - var(--board-size) - 2 * var(--card-pad) - 2 * var(--page-pad) - var(--safe-x) - 20px)
+      auto;
+    /* Spacer rows top and bottom take the board's extra height, keeping the info together. */
+    grid-template-rows: 1fr repeat(5, auto) 1fr;
+    column-gap: 20px;
+  }
+
+  .game-card > :not(.board-wrap) {
+    grid-column: 1;
+  }
+
+  .matchup {
+    gap: 6px;
+  }
+
+  .matchup__player {
+    gap: 6px;
+    padding: 4px 8px 4px 4px;
+  }
+
+  .matchup__player--O {
+    padding: 4px 4px 4px 8px;
+  }
+
+  .matchup__player .avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 0.75rem;
+  }
+
+  .matchup__name {
+    font-size: 0.85rem;
+  }
+
+  .card__header { grid-row: 2; }
+  .matchup { grid-row: 3; }
+  .status { grid-row: 4; }
+  .detail { grid-row: 5; }
+  .turn-timer { grid-row: 6; }
+
+  .board-wrap {
+    grid-column: 2;
+    grid-row: 1 / -1;
+  }
+
+  .card__header {
+    margin-bottom: 8px;
+  }
+
+  .status {
+    margin-top: 10px;
+  }
+
+  .turn-timer {
+    width: 100%;
+    margin-bottom: 0;
+  }
+
+  .line {
+    width: min(100%, 640px);
+    padding: 10px 14px;
+  }
+
+  .line__list {
+    flex-flow: row wrap;
+  }
+}
+
+/* Windows high contrast and other forced-colour modes drop shadows and backgrounds. */
+@media (forced-colors: active) {
+  .card,
+  .matchup__player,
+  .cell,
+  .line__item,
+  .timer-bar {
+    border: 1px solid CanvasText;
+  }
+
+  .cell:disabled {
+    color: CanvasText;
+  }
+
+  .matchup__player--turn,
+  body.my-turn .board,
+  .cell--win {
+    outline: 3px solid Highlight;
+  }
+
+  .timer-bar__fill {
+    background: Highlight;
+  }
+
+  .avatar,
+  .tag {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
 }
 
 /* ---------- Footer + privacy page ---------- */
@@ -684,7 +910,6 @@ body.game-lost .cell--win {
   .cell,
   .cell--new .mark,
   .cell--new .mark path,
-  .cell--new .mark circle,
   .timer-bar__fill,
   .timer-bar--urgent .timer-bar__fill {
     animation: none;
