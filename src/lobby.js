@@ -13,7 +13,8 @@ const DEFAULT_KICK_AFTER_MS = 15 * 60 * 1000;
  *
  * The first two players in the queue play; everyone else waits in line.
  * After a game ends the winner stays on and the loser moves to the back of
- * the line (on a draw both move to the back). A player who doesn't move within the
+ * the line (on a draw both move to the back). When only two players are connected
+ * they alternate who goes first (X) each game. A player who doesn't move within the
  * turn timeout forfeits the game and goes to the back of the line; one who keeps timing
  * out without moving for `kickAfterMs` is removed. Each player gets a name like
  * "Player 3", which they can reclaim when reconnecting. Independent of Socket.IO so it
@@ -228,6 +229,11 @@ class Lobby {
     else losers = [x, o];
 
     this.queue = this.queue.filter((id) => !losers.includes(id)).concat(losers);
+    if (this.queue.length === 2) {
+      // Rematch between the same two players: alternate who goes first,
+      // otherwise the winner (who stays at the front) would always be X.
+      this.queue = [o, x];
+    }
     this.endGame();
     this.startGameIfPossible();
     this.onChange();

@@ -41,7 +41,8 @@ Each visitor gets a name like **Player 3**. Everyone sees the current matchup
 A name is kept per browser tab, so a tab that reconnects (for example after being idle) gets the same name back.
 
 When a game ends, the result is shown briefly. The winner stays on and the loser goes to
-the back of the line (on a draw, both go to the back). If a player disconnects mid-game,
+the back of the line (on a draw, both go to the back). When only two people are playing,
+they take turns going first, so a player who keeps winning doesn't always start. If a player disconnects mid-game,
 the next person in line steps in right away.
 
 Each turn has a 15-second limit, shown as a countdown to everyone. A player who runs out of
