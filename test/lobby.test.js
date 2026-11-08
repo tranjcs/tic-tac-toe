@@ -127,6 +127,29 @@ describe('Lobby', () => {
     assert.equal(lobby.stateFor('b').status, Status.PLAYING);
   });
 
+  it('with only two players, they alternate who goes first even if one keeps winning', () => {
+    lobby.join('a');
+    lobby.join('b');
+    playMoves(lobby, 'a', 'b', X_WINS); // a (X) wins
+    mock.timers.tick(DELAY);
+    assert.equal(lobby.stateFor('b').mark, Mark.X, 'loser goes first next');
+    assert.equal(lobby.stateFor('a').mark, Mark.O);
+
+    playMoves(lobby, 'b', 'a', O_WINS); // a (O) wins again
+    mock.timers.tick(DELAY);
+    assert.equal(lobby.stateFor('a').mark, Mark.X, 'swaps back');
+    assert.equal(lobby.stateFor('b').mark, Mark.O);
+  });
+
+  it('with only two players, a draw also swaps who goes first', () => {
+    lobby.join('a');
+    lobby.join('b');
+    playMoves(lobby, 'a', 'b', DRAW_GAME);
+    mock.timers.tick(DELAY);
+    assert.equal(lobby.stateFor('b').mark, Mark.X);
+    assert.equal(lobby.stateFor('a').mark, Mark.O);
+  });
+
   it('when a player leaves mid-game, the next in line steps in', () => {
     ['a', 'b', 'c'].forEach((id) => lobby.join(id));
     lobby.move('a', 0);
@@ -306,12 +329,12 @@ describe('Lobby', () => {
       lobby.join('b');
       mock.timers.tick(TURN); // a (X) times out first: the removal clock starts now
       const started = Date.now();
-      // From here on b wins and stays X; a keeps coming back as O and timing out.
+      // From here on a keeps coming back (alternating X and O) and timing out.
       while (Date.now() - started < KICK) {
         assert.equal(onKick.mock.callCount(), 0);
         mock.timers.tick(DELAY);
-        assert.equal(lobby.stateFor('a').mark, Mark.O);
-        bMovesThenATimesOut();
+        if (lobby.stateFor('a').mark === Mark.X) mock.timers.tick(TURN);
+        else bMovesThenATimesOut();
       }
       assert.deepEqual(onKick.mock.calls.map((call) => call.arguments[0]), ['a']);
       assert.deepEqual(lobby.playerIds, ['b']);
