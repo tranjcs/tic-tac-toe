@@ -2,8 +2,8 @@
 
 A simple real-time tic-tac-toe game for two players, built with Node.js, Express and Socket.IO.
 
-**Play it:** https://ttt.code-brew.app (open it in two tabs, or send the link to a friend).
-The Cloud Run URL https://tic-tac-toe-2vsyooeshq-uc.a.run.app also works.
+**Play it:** https://xo.codebrew.studio (open it in two tabs, or send the link to a friend).
+The development version runs at https://xo.steeping.studio.
 
 The first visit after a quiet spell can take a few seconds while the server starts up.
 
@@ -89,13 +89,13 @@ player who left (`left`, `hidden`, `idle`, `kicked` or `disconnected`) and by th
 ### Setup
 
 1. In [Google Analytics](https://analytics.google.com), create a GA4 property and a **Web** data stream
-   for `https://ttt.code-brew.app`. Copy its Measurement ID (`G-…`). Use this ID, not a Google Tag
+   for `https://xo.codebrew.studio` (and, if you want dev data kept apart, a separate property for
+   `https://xo.steeping.studio`). Copy its Measurement ID (`G-…`). Use this ID, not a Google Tag
    Manager container ID (`GTM-…`); the game loads Google Analytics directly and ignores any other format.
-2. Set it on the service: run the deploy script with `GA_MEASUREMENT_ID=G-…`, or for the GitHub
-   workflow add `GA_MEASUREMENT_ID` to the `dev` environment as an **environment secret** or an
-   **environment variable** (if both exist, the secret is used). A secret only hides the ID in the
-   Actions logs: it's public anyway, since every visitor's browser receives it.
-   The service keeps the value across later deploys.
+2. Set it on the service: in terrabrew, set `ga_measurement_id` in the environment's
+   `terraform.tfvars` and run `terraform apply`. Deploys keep the value. (For your own copy, run the
+   deploy script with `GA_MEASUREMENT_ID=G-…`.) Don't set it in the GitHub Environments: the
+   workflows no longer pass it on. The ID isn't secret; every visitor's browser receives it.
 3. In GA, **Admin → Custom definitions**, register these event-scoped **custom dimensions**:
    `outcome`, `result`, `opening_move`, `cell_type`, `reason`, `came_from`, `mark`, `timed_out`,
    and these **custom metrics**: `duration_sec` (unit: seconds), `wait_sec` (seconds), `total_moves`, `moves_made`.
@@ -157,9 +157,8 @@ src/
   constants.js   Shared enums: marks, statuses, event names
   config.js      Environment-based configuration
 scripts/
-  deploy-cloudrun.sh        Build and deploy to Cloud Run
-  setup-github-deploy.sh    One-time setup for the GitHub "Deploy to dev" button
-  map-domain.sh             Point a custom domain (ttt.code-brew.app) at the service
+  deploy-cloudrun.sh        Build and deploy your own copy to Cloud Run (not used by the workflows)
+  artifact-cleanup-policy.json  Image cleanup policy applied by deploy-cloudrun.sh
 public/
   index.html     Game page
   privacy.html   Privacy notice (what's collected, Google Analytics, cookies)
@@ -177,26 +176,77 @@ test/
 
 ## Deploy to Google Cloud Run
 
-Prerequisites: a Google Cloud project with billing enabled, and the
-[gcloud CLI](https://cloud.google.com/sdk/docs/install) installed and logged in (`gcloud auth login`).
+The game runs on Cloud Run in two Google Cloud projects, one per environment:
 
-```bash
-PROJECT_ID=your-project-id ./scripts/deploy-cloudrun.sh
-```
+| | dev | prod |
+| --- | --- | --- |
+| URL | https://xo.steeping.studio | https://xo.codebrew.studio |
+| Deploys | Every push to `main` (or a branch, on demand) | A `v*` release tag, after approval |
+| Builds | Builds each commit's image once | Never builds: promotes dev's image |
 
-Set `REGION` to deploy somewhere other than `us-central1`. The script enables the needed APIs,
-creates an Artifact Registry repository, builds the image with Cloud Build (no local Docker needed),
-deploys it, and prints the public URL.
+The infrastructure (registries, the Cloud Run services and their settings, service accounts,
+GitHub sign-in, domains) is managed with Terraform in the private
+[terrabrew](https://github.com/tranjcs/terrabrew) repository. This repository's workflows only
+build images and change which image each service runs.
 
-Why the settings are what they are:
+Why the service settings are what they are (set in terrabrew):
 
-- `--max-instances 1`: players and the line live in memory, so there must be exactly one server.
+- **At most 1 instance:** players and the line live in memory, so there must be exactly one server.
   Two instances would split players into separate, invisible lobbies.
-- `--cpu 1`: Cloud Run forces one connection per instance below 1 vCPU, which would break the game.
-- `--timeout 3600`: Cloud Run closes any connection after at most 60 minutes. The client
+- **1 vCPU:** Cloud Run forces one connection per instance below 1 vCPU, which would break the game.
+- **1-hour timeout:** Cloud Run closes any connection after at most 60 minutes. The client
   reconnects automatically, but the player rejoins at the back of the line.
-- `--min-instances 0`: the server shuts down when nobody is connected, so it costs nothing while idle.
-  The first visit after idle takes a few seconds longer.
+- **Minimum 0 instances:** the server shuts down when nobody is connected, so it costs nothing while
+  idle. The first visit after idle takes a few seconds longer.
+
+### Build once, promote to prod
+
+Each commit is built once, in dev, and tagged with its commit SHA. Prod runs that exact image
+(same digest), so what reaches prod is what was tested in dev.
+
+1. **Merge to `main`.** **Deploy to dev** runs the tests, builds `app:<sha>`, and deploys it to dev.
+   Rerunning it for the same commit redeploys the existing image without rebuilding.
+2. **Try it on dev.**
+3. **Release.** Tag the commit and push the tag:
+
+   ```bash
+   git tag v1.2.3 <sha>
+   ```
+   ```bash
+   git push origin v1.2.3
+   ```
+
+   **Deploy to prod** checks that the commit is on `main` and has a dev image, waits for
+   approval, copies the image into prod's registry (tagged `v1.2.3`, same digest), and deploys it.
+
+To **roll back**, either:
+
+- run **Deploy to prod** from an older tag (Run workflow → Use workflow from → Tags), or
+- in the Cloud Run console, send traffic back to the previous revision (Revisions → Manage traffic),
+  which takes seconds.
+
+To try a branch on dev without merging it, run **Deploy to dev** and pick the branch. Only
+commits on `main` can be released to prod.
+
+### GitHub setup
+
+GitHub logs in to Google Cloud with [Workload Identity Federation](https://github.com/google-github-actions/auth#preferred-direct-workload-identity-federation),
+so no key is stored anywhere. Each project only accepts logins from this repository's matching
+GitHub Environment. The repo is public, so its Actions logs are too; GitHub masks secret values
+as `***` in them.
+
+In **Settings → Environments**, create two environments:
+
+- **`dev`**, with the environment secrets `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVIDER` and
+  `GCP_DEPLOY_SA`. terrabrew prints them: `terraform output github_environment_secrets` in `envs/dev`.
+- **`prod`**, with the same four from `envs/prod`, plus `DEV_GCP_PROJECT_ID` (the dev project ID,
+  where images are promoted from). Then protect it:
+  - **Required reviewers:** add yourself, so every prod deploy waits for approval.
+  - **Deployment branches and tags:** choose *Selected branches and tags* and allow only the tag
+    pattern `v*`.
+
+Also add a tag ruleset (**Settings → Rules → Rulesets**, target tags `v*`) so only you can create,
+move or delete release tags.
 
 ### Cost
 
@@ -207,77 +257,28 @@ when its tab has been hidden for 60 seconds and reconnects when it's visible aga
 a visible tab after 15 minutes with no mouse, touch or keyboard activity, and the server disconnects a
 player who has timed out on every turn for 15 minutes, so a tab left open on an unattended screen
 doesn't keep the server running. As a backstop, the server also disconnects any client that hasn't reported
-activity for 20 minutes, which covers old versions of the page still open in someone's browser. Worst case, a connection held open all month costs about $60.
+activity for 20 minutes, which covers old versions of the page still open in someone's browser. Worst case, a connection held open all month costs about $60 per environment.
 
-Each deploy stores a new image in Artifact Registry. The deploy and setup scripts apply a cleanup
-policy (`scripts/artifact-cleanup-policy.json`) that keeps the 5 newest images and deletes older
-ones after 7 days.
+Each build stores an image in Artifact Registry. Cleanup policies (set in terrabrew) keep the
+5 newest images in dev, and the 10 newest plus every `v*` release in prod.
 
-Set a budget alert as a safety net: in the Google Cloud console, go to **Billing → Budgets & alerts**
-and create a budget of a few dollars with email alerts.
+Set a budget alert on each project as a safety net: in the Google Cloud console, go to
+**Billing → Budgets & alerts** and create a budget of a few dollars with email alerts.
 
-### Deploy to dev from GitHub (one click)
+### Deploy your own copy (without Terraform)
 
-The **Deploy to dev** workflow (Actions → Deploy to dev → **Run workflow**) runs the tests on the
-branch you pick, builds the image, and deploys it to Cloud Run. It only runs when you press the button.
+To run the game in your own Google Cloud project, you need billing enabled and the
+[gcloud CLI](https://cloud.google.com/sdk/docs/install) logged in (`gcloud auth login`):
 
-GitHub logs in to Google Cloud with [Workload Identity Federation](https://github.com/google-github-actions/auth#preferred-direct-workload-identity-federation),
-so no key is stored anywhere. Google only accepts logins from this repository's `dev` environment.
-Project settings are stored as **secrets** in that GitHub environment, not in the code. The repo
-is public, so its Actions logs are too; GitHub masks secret values as `***` in them.
+```bash
+PROJECT_ID=your-project-id ./scripts/deploy-cloudrun.sh
+```
 
-One-time setup:
-
-1. Create the deploy account and identity provider (safe to rerun):
-
-   ```bash
-   PROJECT_ID=your-project-id ./scripts/setup-github-deploy.sh
-   ```
-
-   It grants the deploy account only `run.developer`, write access to the `tic-tac-toe` image
-   repository, and permission to deploy as the service's runtime account.
-
-2. In GitHub, go to **Settings → Environments → New environment**, name it `dev`, and add the four
-   **environment secrets** the script prints: `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVIDER`, `GCP_DEPLOY_SA`.
-   Optionally, restrict which branches can deploy, or require your approval for each deploy.
-
-3. Go to **Actions → Deploy to dev → Run workflow**.
-
-### Custom domain (ttt.code-brew.app)
-
-The game is served at `ttt.code-brew.app` through a
-[Cloud Run domain mapping](https://cloud.google.com/run/docs/mapping-custom-domains), which is free
-and comes with a Google-managed HTTPS certificate. (A load balancer would also work but costs about
-$18 a month.) The mapping stays in place across deploys; this is a one-time setup.
-
-1. Verify that you own `code-brew.app` (once per Google account; it covers every subdomain):
-
-   ```bash
-   gcloud domains verify code-brew.app
-   ```
-
-   This opens Google Search Console. Add the `TXT` record it shows at your DNS provider and click **Verify**.
-
-2. Create the mapping. The script prints the DNS record to add:
-
-   ```bash
-   PROJECT_ID=your-project-id ./scripts/map-domain.sh
-   ```
-
-3. At your DNS provider, add the record it prints, which is normally:
-
-   | Name  | Type    | Value                   |
-   | ----- | ------- | ----------------------- |
-   | `ttt` | `CNAME` | `ghs.googlehosted.com.` |
-
-   If you use Cloudflare, set the record to **DNS only** (grey cloud), or Google can't issue the certificate.
-   If the domain has `CAA` records, they must allow `pki.goog` and `letsencrypt.org`.
-
-4. Wait for the certificate. Rerun the script to see its status; it's ready when every condition is `True`.
-   This usually takes 15 to 60 minutes, sometimes a few hours. `.app` domains only work over HTTPS,
-   so the site won't load at all until the certificate is issued.
-
-To use a different domain, set `DOMAIN=play.example.com` when running the script.
+Set `REGION` to deploy somewhere other than `us-central1`, and `GA_MEASUREMENT_ID` to turn on
+analytics. The script enables the needed APIs, creates an Artifact Registry repository, builds the
+image with Cloud Build (no local Docker needed), deploys it with the settings above, and prints the
+public URL. Don't use it on the dev or prod projects: it sets the service's settings itself, which
+Terraform would then report as drift and revert.
 
 ### Run with Docker locally
 

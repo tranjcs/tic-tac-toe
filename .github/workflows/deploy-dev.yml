@@ -1,7 +1,10 @@
 name: Deploy to dev
 
-# Manual only: Actions → "Deploy to dev" → Run workflow (pick a branch).
+# Runs on every push to main, so every commit on main has a tested dev image that can be
+# promoted to prod. To try a branch on dev: Actions → "Deploy to dev" → Run workflow.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -41,9 +44,6 @@ jobs:
     env:
       PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       REGION: ${{ secrets.GCP_REGION || 'us-central1' }}
-      # Optional. Read from a secret or a variable in the "dev" environment (the secret wins).
-      # The ID is public anyway (browsers receive it); a secret only masks it in these logs.
-      GA_MEASUREMENT_ID: ${{ secrets.GA_MEASUREMENT_ID || vars.GA_MEASUREMENT_ID }}
     steps:
       - name: Check configuration
         env:
@@ -55,7 +55,7 @@ jobs:
           [[ -n "$WIF_PROVIDER" ]] || missing+=(GCP_WIF_PROVIDER)
           [[ -n "$DEPLOY_SA" ]] || missing+=(GCP_DEPLOY_SA)
           if (( ${#missing[@]} )); then
-            echo "::error::Missing secrets in the 'dev' environment: ${missing[*]}. Run scripts/setup-github-deploy.sh and see the README."
+            echo "::error::Missing secrets in the 'dev' environment: ${missing[*]}. See 'GitHub setup' in the README."
             exit 1
           fi
 
@@ -68,18 +68,50 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v3
 
-      - name: Build and push image
-        run: |
-          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/tic-tac-toe/app:${GITHUB_SHA}"
-          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
-          docker build -t "$IMAGE" .
-          docker push "$IMAGE"
-          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
 
+      # Pinned version; the Go checksum database verifies the download.
+      - name: Install crane
+        run: |
+          go install github.com/google/go-containerregistry/cmd/crane@v0.22.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # Build once per commit. If this commit's image already exists (the workflow is rerun),
+      # deploy that exact image instead of rebuilding: a rebuild could pick up a newer base
+      # image and no longer match what was tested and later promoted to prod.
+      - name: Build and push image (once per commit)
+        run: |
+          REPO="${REGION}-docker.pkg.dev/${PROJECT_ID}/tic-tac-toe/app"
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          if digest="$(crane digest "${REPO}:${GITHUB_SHA}" 2>/dev/null)"; then
+            echo "Image for ${GITHUB_SHA::7} already exists; deploying it without rebuilding."
+          else
+            docker build -t "${REPO}:${GITHUB_SHA}" .
+            docker push "${REPO}:${GITHUB_SHA}"
+            digest="$(crane digest "${REPO}:${GITHUB_SHA}")"
+          fi
+          echo "IMAGE=${REPO}@${digest}" >> "$GITHUB_ENV"
+          echo "DIGEST=${digest}" >> "$GITHUB_ENV"
+
+      # Terraform (tranjcs/terrabrew) owns every other setting of the service, including its
+      # environment variables, so the deploy only changes which image runs.
       - name: Deploy to Cloud Run
         id: deploy
         run: |
-          ./scripts/deploy-cloudrun.sh | tee deploy.log
-          url="$(tail -n 1 deploy.log)"
+          gcloud run services update tic-tac-toe \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --image "$IMAGE" --quiet
+          url="$(gcloud run services describe tic-tac-toe --project "$PROJECT_ID" --region "$REGION" --format 'value(status.url)')"
           echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "Deployed \`${GITHUB_SHA::7}\` to $url" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "Deployed \`${GITHUB_SHA::7}\` to $url"
+            echo
+            echo "Image digest: \`${DIGEST}\`"
+            if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+              echo
+              echo "To release this build to prod, tag this commit (e.g. \`git tag v1.2.3 ${GITHUB_SHA::7} && git push origin v1.2.3\`)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

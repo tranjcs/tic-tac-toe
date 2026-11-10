@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Deploys the game to Cloud Run.
+# Deploys your own copy of the game to Cloud Run.
+#
+# Not for the dev/prod projects: Terraform (tranjcs/terrabrew) owns their service settings and
+# the GitHub workflows deploy there, changing only the image.
 #
 # Manual (builds with Cloud Build, no local Docker needed):
 #   PROJECT_ID=my-project [REGION=us-central1] ./scripts/deploy-cloudrun.sh
 #
-# Deploy-only (used by CI, which builds and pushes the image itself):
+# Deploy-only (an image you already built and pushed):
 #   IMAGE=<region>-docker.pkg.dev/<project>/tic-tac-toe/app:<tag> PROJECT_ID=my-project ./scripts/deploy-cloudrun.sh
 #
 # Set GA_MEASUREMENT_ID=G-XXXXXXXXXX to turn on Google Analytics. When unset, the
