@@ -55,7 +55,7 @@ jobs:
           [[ -n "$WIF_PROVIDER" ]] || missing+=(GCP_WIF_PROVIDER)
           [[ -n "$DEPLOY_SA" ]] || missing+=(GCP_DEPLOY_SA)
           if (( ${#missing[@]} )); then
-            echo "::error::Missing secrets in the 'dev' environment: ${missing[*]}. See 'Deploy from GitHub' in the README."
+            echo "::error::Missing secrets in the 'dev' environment: ${missing[*]}. See 'GitHub setup' in the README."
             exit 1
           fi
 
@@ -75,7 +75,9 @@ jobs:
 
       # Pinned version; the Go checksum database verifies the download.
       - name: Install crane
-        run: go install github.com/google/go-containerregistry/cmd/crane@v0.22.1
+        run: |
+          go install github.com/google/go-containerregistry/cmd/crane@v0.22.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # Build once per commit. If this commit's image already exists (the workflow is rerun),
       # deploy that exact image instead of rebuilding: a rebuild could pick up a newer base
@@ -108,6 +110,8 @@ jobs:
             echo "Deployed \`${GITHUB_SHA::7}\` to $url"
             echo
             echo "Image digest: \`${DIGEST}\`"
-            echo
-            echo "To release this build to prod, tag this commit (e.g. \`git tag v1.2.3 ${GITHUB_SHA::7} && git push origin v1.2.3\`)."
+            if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+              echo
+              echo "To release this build to prod, tag this commit (e.g. \`git tag v1.2.3 ${GITHUB_SHA::7} && git push origin v1.2.3\`)."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

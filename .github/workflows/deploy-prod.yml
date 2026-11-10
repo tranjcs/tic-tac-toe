@@ -56,7 +56,7 @@ jobs:
           [[ -n "$WIF_PROVIDER" ]] || missing+=(GCP_WIF_PROVIDER)
           [[ -n "$DEPLOY_SA" ]] || missing+=(GCP_DEPLOY_SA)
           if (( ${#missing[@]} )); then
-            echo "::error::Missing secrets in the 'prod' environment: ${missing[*]}. See 'Deploy from GitHub' in the README."
+            echo "::error::Missing secrets in the 'prod' environment: ${missing[*]}. See 'GitHub setup' in the README."
             exit 1
           fi
 
@@ -87,7 +87,9 @@ jobs:
 
       # Pinned version; the Go checksum database verifies the download.
       - name: Install crane
-        run: go install github.com/google/go-containerregistry/cmd/crane@v0.22.1
+        run: |
+          go install github.com/google/go-containerregistry/cmd/crane@v0.22.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # Copy the exact image dev built for this commit. crane copies the manifest as-is,
       # so the digest in prod is identical to the one tested in dev.
