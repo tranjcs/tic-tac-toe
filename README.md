@@ -27,6 +27,8 @@ Open http://localhost:3000 in two (or more) browser tabs. Use `npm run dev` to r
 | `TURN_TIMEOUT_MS` | `15000` | How long a player has to move before forfeiting |
 | `IDLE_TIMEOUT_MS` | `1200000` | Disconnect a client that reports no activity for this long (20 min) |
 | `GA_MEASUREMENT_ID` | (none) | Google Analytics 4 ID (`G-XXXXXXXXXX`); analytics is off when unset |
+| `MAX_CONNECTIONS_PER_IP` | `10` | Refuse connections past this many from one address (IPv6: one /64) |
+| `TRUST_PROXY` | unset (`1` in the Docker image) | Take the client address from the last `X-Forwarded-For` entry. Only set this behind a proxy that appends it, like Cloud Run; otherwise clients can forge it |
 
 ## How it works
 
@@ -208,6 +210,12 @@ a visible tab after 15 minutes with no mouse, touch or keyboard activity, and th
 player who has timed out on every turn for 15 minutes, so a tab left open on an unattended screen
 doesn't keep the server running. As a backstop, the server also disconnects any client that hasn't reported
 activity for 20 minutes, which covers old versions of the page still open in someone's browser. Worst case, a connection held open all month costs about $60.
+
+Abuse limits: one address can hold at most 10 connections (`MAX_CONNECTIONS_PER_IP`), so a script
+can't fill the line by itself. The server disconnects a client that sends more than a short burst of
+messages (20, refilling at 5 a second; a person sends a few) or any message over 2 KB. A script that
+fakes activity can still keep the server running, so set a
+[budget alert](https://cloud.google.com/billing/docs/how-to/budgets) on the project.
 
 Each deploy stores a new image in Artifact Registry. The deploy and setup scripts apply a cleanup
 policy (`scripts/artifact-cleanup-policy.json`) that keeps the 5 newest images and deletes older

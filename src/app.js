@@ -5,10 +5,17 @@ const path = require('node:path');
 const express = require('express');
 const { Server } = require('socket.io');
 const { Lobby } = require('./lobby');
-const { Events } = require('./constants');
+const { Events, ErrorCodes } = require('./constants');
+const { clientKey, ConnectionLimiter, createRateLimiter } = require('./limits');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const DEFAULT_IDLE_TIMEOUT_MS = 20 * 60 * 1000;
+const DEFAULT_MAX_CONNECTIONS_PER_IP = 10;
+// Every message the client sends is tiny (a cell index, a heartbeat, a name).
+const MAX_MESSAGE_BYTES = 2 * 1024;
+// A person clicks a few times a second at most and reports activity once a minute.
+const MESSAGE_BURST = 20;
+const MESSAGES_PER_SECOND = 5;
 
 /**
  * Creates the HTTP + Socket.IO server without starting it.
@@ -18,6 +25,8 @@ const DEFAULT_IDLE_TIMEOUT_MS = 20 * 60 * 1000;
  * @param {number} [options.turnTimeoutMs]
  * @param {number} [options.idleTimeoutMs] - disconnect a client that reports no activity for this long
  * @param {number} [options.idleCheckMs] - how often to look for idle clients
+ * @param {number} [options.maxConnectionsPerIp] - refuse connections past this many per client address
+ * @param {boolean} [options.trustProxy] - take the client address from X-Forwarded-For (Cloud Run)
  * @returns {{ server: http.Server, io: Server, lobby: Lobby }}
  */
 function createApp({
@@ -26,6 +35,8 @@ function createApp({
   idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS,
   idleCheckMs = Math.min(30 * 1000, idleTimeoutMs),
   gaMeasurementId = null,
+  maxConnectionsPerIp = DEFAULT_MAX_CONNECTIONS_PER_IP,
+  trustProxy = false,
 }) {
   const app = express();
   app.disable('x-powered-by');
@@ -38,7 +49,20 @@ function createApp({
   app.use(express.static(PUBLIC_DIR));
 
   const server = http.createServer(app);
-  const io = new Server(server);
+  const io = new Server(server, { maxHttpBufferSize: MAX_MESSAGE_BYTES });
+
+  // One address can't fill the line (or keep the server running) with many connections.
+  // Socket.IO clients don't retry after a middleware error; the page tells the player why.
+  const connections = new ConnectionLimiter(maxConnectionsPerIp);
+  io.use((socket, next) => {
+    const key = clientKey(socket.handshake, trustProxy);
+    if (!connections.acquire(key)) {
+      next(new Error(ErrorCodes.TOO_MANY_CONNECTIONS));
+      return;
+    }
+    socket.data.limitKey = key;
+    next();
+  });
 
   const lobby = new Lobby({
     resultDelayMs,
@@ -70,12 +94,19 @@ function createApp({
   io.on('connection', (socket) => {
     markActive(socket);
     lobby.join(socket.id, socket.handshake.auth?.name);
+    // A client flooding messages is a script, not a person: drop it.
+    const allowMessage = createRateLimiter({ burst: MESSAGE_BURST, perSecond: MESSAGES_PER_SECOND });
+    socket.use((_packet, next) => {
+      if (allowMessage()) next();
+      else socket.disconnect(true);
+    });
     socket.on(Events.ACTIVE, () => markActive(socket));
     socket.on(Events.MOVE, (cell) => {
       markActive(socket);
       lobby.move(socket.id, cell);
     });
     socket.on('disconnect', () => {
+      connections.release(socket.data.limitKey);
       lastActive.delete(socket.id);
       lobby.leave(socket.id);
     });

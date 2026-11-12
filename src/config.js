@@ -6,6 +6,7 @@ const DEFAULT_TURN_TIMEOUT_MS = 15000;
 // A little longer than the client's own 15-minute idle pause, so this only catches
 // clients that don't pause themselves (old page versions, scripts).
 const DEFAULT_IDLE_TIMEOUT_MS = 20 * 60 * 1000;
+const DEFAULT_MAX_CONNECTIONS_PER_IP = 10;
 
 function parsePositiveInt(value, fallback) {
   const n = Number.parseInt(value, 10);
@@ -26,4 +27,7 @@ module.exports = Object.freeze({
   parseMeasurementId,
   turnTimeoutMs: parsePositiveInt(process.env.TURN_TIMEOUT_MS, DEFAULT_TURN_TIMEOUT_MS),
   idleTimeoutMs: parsePositiveInt(process.env.IDLE_TIMEOUT_MS, DEFAULT_IDLE_TIMEOUT_MS),
+  maxConnectionsPerIp: parsePositiveInt(process.env.MAX_CONNECTIONS_PER_IP, DEFAULT_MAX_CONNECTIONS_PER_IP),
+  // Only behind a proxy that appends the real client address (Cloud Run); see src/limits.js.
+  trustProxy: process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true',
 });

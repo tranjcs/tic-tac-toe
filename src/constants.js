@@ -20,4 +20,9 @@ const Events = Object.freeze({
   ACTIVE: 'active', // client heartbeat: someone is using this tab
 });
 
-module.exports = { Mark, DRAW, Status, Events };
+/** Messages of errors the server sends when it refuses a connection. */
+const ErrorCodes = Object.freeze({
+  TOO_MANY_CONNECTIONS: 'too_many_connections',
+});
+
+module.exports = { Mark, DRAW, Status, Events, ErrorCodes };

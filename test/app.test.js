@@ -176,3 +176,64 @@ describe('app idle disconnect', () => {
     assert.equal(busy.connected, true);
   });
 });
+
+describe('app abuse limits', () => {
+  let server;
+  let lobby;
+  let url;
+  const sockets = [];
+  const join = () => {
+    const socket = connect(url, { forceNew: true, transports: ['websocket'], reconnection: false });
+    sockets.push(socket);
+    return socket;
+  };
+
+  before(async () => {
+    ({ server, lobby } = createApp({ resultDelayMs: 50, maxConnectionsPerIp: 2 }));
+    await new Promise((resolve) => server.listen(0, resolve));
+    url = `http://localhost:${server.address().port}`;
+  });
+
+  after(async () => {
+    sockets.forEach((s) => s.disconnect());
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  it('refuses connections past the per-address limit, and frees the slot on disconnect', async () => {
+    const a = join();
+    const b = join();
+    await Promise.all([nextState(a), nextState(b)]);
+
+    const c = join();
+    const err = await new Promise((resolve) => c.on('connect_error', resolve));
+    assert.equal(err.message, 'too_many_connections');
+    assert.equal(lobby.playerIds.length, 2);
+
+    a.disconnect();
+    await until(() => lobby.playerIds.length === 1);
+    const d = join();
+    await nextState(d);
+    assert.equal(lobby.playerIds.length, 2);
+    b.disconnect();
+    d.disconnect();
+    await until(() => lobby.playerIds.length === 0);
+  });
+
+  it('disconnects a client that floods messages', async () => {
+    const socket = join();
+    await nextState(socket);
+    const disconnected = new Promise((resolve) => socket.on('disconnect', resolve));
+    for (let i = 0; i < 100; i += 1) socket.emit(Events.ACTIVE);
+    assert.equal(await disconnected, 'io server disconnect');
+    await until(() => lobby.playerIds.length === 0);
+  });
+
+  it('drops a client that sends an oversized message', async () => {
+    const socket = join();
+    await nextState(socket);
+    const disconnected = new Promise((resolve) => socket.on('disconnect', resolve));
+    socket.emit(Events.MOVE, 'x'.repeat(10 * 1024));
+    await disconnected;
+    await until(() => lobby.playerIds.length === 0);
+  });
+});

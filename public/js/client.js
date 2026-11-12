@@ -374,7 +374,17 @@
     hidden: 'Paused — tab inactive',
     idle: 'Paused — no activity. Click anywhere to rejoin.',
     kicked: 'Disconnected for inactivity. Click anywhere to rejoin.',
+    limited: 'Too many games open from your network. Close other tabs, then click anywhere to retry.',
   };
+
+  // The server refuses a connection when this address already has too many open
+  // (src/app.js). Socket.IO doesn't retry that by itself; wait for the player.
+  socket.on('connect_error', (err) => {
+    if (err.message !== 'too_many_connections') return;
+    pausedFor = 'limited';
+    statusEl.textContent = PAUSED_TEXT.limited;
+    detailEl.textContent = '';
+  });
 
   socket.on('disconnect', (reason) => {
     // The server only disconnects us for inactivity (no activity reported, or timing out
@@ -455,7 +465,7 @@
   });
   // Rejoining takes a deliberate click or key press, not a stray mouse nudge.
   ['pointerdown', 'keydown'].forEach((type) => {
-    window.addEventListener(type, () => { if (pausedFor === 'idle' || pausedFor === 'kicked') resume(); });
+    window.addEventListener(type, () => { if (['idle', 'kicked', 'limited'].includes(pausedFor)) resume(); });
   });
 
   setInterval(() => {
