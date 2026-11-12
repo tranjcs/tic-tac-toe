@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # One-time setup so the "Deploy to dev" GitHub Actions workflow can deploy without a stored key.
 #
-# Creates a deploy service account with only the roles it needs, and a Workload Identity
+# Creates a runtime service account with no roles for the Cloud Run service, a deploy service
+# account with only the roles it needs, and a Workload Identity
 # Federation provider that trusts GitHub's tokens only for this repository's environment.
 # Safe to rerun. Prints the secrets to add to the GitHub environment; writes nothing to the repo.
 #
@@ -17,6 +18,7 @@ REPOSITORY="tic-tac-toe"
 POOL="github"
 PROVIDER="github-actions"
 DEPLOY_SA_NAME="github-deploy"
+RUNTIME_SA_NAME="tic-tac-toe-run" # same name as terrabrew's Terraform module
 
 cd "$(dirname "$0")/.."
 
@@ -73,10 +75,17 @@ if ! gcloud iam service-accounts describe "$DEPLOY_SA" --project "$PROJECT_ID" >
     --display-name "GitHub Actions deploy (${GITHUB_REPO})"
 fi
 
-# The Cloud Run service runs as this account; deploying requires permission to "act as" it.
-RUNTIME_SA="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" \
-  --format 'value(spec.template.spec.serviceAccountName)' 2>/dev/null || true)"
-RUNTIME_SA="${RUNTIME_SA:-${PROJECT_NUMBER}-compute@developer.gserviceaccount.com}"
+# The Cloud Run service runs as its own account with no roles: the app needs no Google Cloud
+# access. Never the default compute account, which usually has Editor on the whole project:
+# a deploy account that can "act as" it could deploy code that runs with that access.
+RUNTIME_SA="${RUNTIME_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+
+if ! gcloud iam service-accounts describe "$RUNTIME_SA" --project "$PROJECT_ID" >/dev/null 2>&1; then
+  echo "==> Creating runtime service account ${RUNTIME_SA}"
+  gcloud iam service-accounts create "$RUNTIME_SA_NAME" --project "$PROJECT_ID" \
+    --display-name "tic-tac-toe Cloud Run runtime"
+fi
 
 echo "==> Granting the deploy account only what it needs"
 retry gcloud projects add-iam-policy-binding "$PROJECT_ID" --condition None --quiet \
@@ -84,8 +93,20 @@ retry gcloud projects add-iam-policy-binding "$PROJECT_ID" --condition None --qu
 retry gcloud artifacts repositories add-iam-policy-binding "$REPOSITORY" \
   --project "$PROJECT_ID" --location "$REGION" \
   --member "serviceAccount:${DEPLOY_SA}" --role roles/artifactregistry.writer >/dev/null
+# Deploying a revision that runs as the runtime account requires permission to "act as" it.
 retry gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" --project "$PROJECT_ID" \
   --member "serviceAccount:${DEPLOY_SA}" --role roles/iam.serviceAccountUser >/dev/null
+
+# Earlier versions of this script granted the deploy account "act as" on the default compute
+# account. Take back any role it holds there. (No compute account, e.g. Compute API off: nothing to do.)
+compute_roles="$(gcloud iam service-accounts get-iam-policy "$COMPUTE_SA" --project "$PROJECT_ID" \
+  --flatten 'bindings[].members' --filter "bindings.members:serviceAccount:${DEPLOY_SA}" \
+  --format 'value(bindings.role)' 2>/dev/null || true)"
+for role in $compute_roles; do
+  echo "==> Removing ${role} for the deploy account on the default compute account"
+  gcloud iam service-accounts remove-iam-policy-binding "$COMPUTE_SA" --project "$PROJECT_ID" \
+    --member "serviceAccount:${DEPLOY_SA}" --role "$role" --all >/dev/null
+done
 
 if ! gcloud iam workload-identity-pools describe "$POOL" \
     --project "$PROJECT_ID" --location global >/dev/null 2>&1; then

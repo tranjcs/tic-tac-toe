@@ -15,6 +15,9 @@ set -euo pipefail
 REGION="${REGION:-us-central1}"
 SERVICE="tic-tac-toe"
 REPOSITORY="tic-tac-toe"
+# The service runs as its own account with no roles, never the default compute account
+# (usually Editor on the project). scripts/setup-github-deploy.sh or Terraform creates it.
+RUNTIME_SA="tic-tac-toe-run@${PROJECT_ID}.iam.gserviceaccount.com"
 
 cd "$(dirname "$0")/.."
 
@@ -35,6 +38,12 @@ if [[ -z "${IMAGE:-}" ]]; then
     gcloud artifacts repositories create "$REPOSITORY" \
       --project "$PROJECT_ID" --location "$REGION" --repository-format docker \
       --description "Tic-tac-toe images"
+  fi
+
+  if ! gcloud iam service-accounts describe "$RUNTIME_SA" --project "$PROJECT_ID" >/dev/null 2>&1; then
+    echo "==> Creating runtime service account ${RUNTIME_SA}"
+    gcloud iam service-accounts create tic-tac-toe-run --project "$PROJECT_ID" \
+      --display-name "tic-tac-toe Cloud Run runtime"
   fi
 
   # Keep only the 5 newest images (each deploy adds one) so storage doesn't grow forever.
@@ -60,6 +69,7 @@ gcloud run deploy "$SERVICE" \
   --project "$PROJECT_ID" \
   --region "$REGION" \
   --image "$IMAGE" \
+  --service-account "$RUNTIME_SA" \
   --allow-unauthenticated \
   --cpu 1 \
   --memory 256Mi \

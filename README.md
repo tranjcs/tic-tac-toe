@@ -242,8 +242,11 @@ One-time setup:
    PROJECT_ID=your-project-id ./scripts/setup-github-deploy.sh
    ```
 
-   It grants the deploy account only `run.developer`, write access to the `tic-tac-toe` image
-   repository, and permission to deploy as the service's runtime account.
+   It creates a runtime account (`tic-tac-toe-run`, no roles) for the service to run as, and grants
+   the deploy account only `run.developer`, write access to the `tic-tac-toe` image repository, and
+   permission to deploy as that runtime account. The service never runs as the default compute
+   account (usually Editor on the project); if an earlier version of the script let the deploy
+   account act as it, rerunning the script takes that back.
 
 2. In GitHub, go to **Settings → Environments → New environment**, name it `dev`, and add the four
    **environment secrets** the script prints: `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVIDER`, `GCP_DEPLOY_SA`.
