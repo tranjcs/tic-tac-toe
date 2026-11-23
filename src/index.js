@@ -8,6 +8,9 @@ const { server, io } = createApp({
   gaMeasurementId: config.gaMeasurementId,
   turnTimeoutMs: config.turnTimeoutMs,
   idleTimeoutMs: config.idleTimeoutMs,
+  maxPlayers: config.maxPlayers,
+  maxConnectionsPerIp: config.maxConnectionsPerIp,
+  trustProxyHops: config.trustProxyHops,
 });
 
 server.listen(config.port, () => {

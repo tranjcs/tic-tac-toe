@@ -26,6 +26,9 @@ Open http://localhost:3000 in two (or more) browser tabs. Use `npm run dev` to r
 | `RESULT_DELAY_MS` | `3000`  | How long a finished game's result is shown   |
 | `TURN_TIMEOUT_MS` | `15000` | How long a player has to move before forfeiting |
 | `IDLE_TIMEOUT_MS` | `1200000` | Disconnect a client that reports no activity for this long (20 min) |
+| `MAX_PLAYERS` | `200` | Refuse new connections once this many players are connected |
+| `MAX_CONNECTIONS_PER_IP` | `20` | Refuse more than this many connections from one address (IPv6: one /64) |
+| `TRUST_PROXY_HOPS` | `0` (`1` in the Docker image) | Proxies in front of the server; the client address is this many entries from the right of `X-Forwarded-For` |
 | `GA_MEASUREMENT_ID` | (none) | Google Analytics 4 ID (`G-XXXXXXXXXX`); analytics is off when unset |
 
 ## How it works

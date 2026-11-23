@@ -5,10 +5,15 @@ const path = require('node:path');
 const express = require('express');
 const { Server } = require('socket.io');
 const { Lobby } = require('./lobby');
-const { Events } = require('./constants');
+const { Events, ConnectError } = require('./constants');
+const { clientIp } = require('./client-ip');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const DEFAULT_IDLE_TIMEOUT_MS = 20 * 60 * 1000;
+const DEFAULT_MAX_PLAYERS = 200;
+const DEFAULT_MAX_CONNECTIONS_PER_IP = 20;
+// The client only ever sends a cell index or a heartbeat; the default allows 1 MB.
+const MAX_MESSAGE_BYTES = 4 * 1024;
 
 /**
  * Creates the HTTP + Socket.IO server without starting it.
@@ -18,6 +23,9 @@ const DEFAULT_IDLE_TIMEOUT_MS = 20 * 60 * 1000;
  * @param {number} [options.turnTimeoutMs]
  * @param {number} [options.idleTimeoutMs] - disconnect a client that reports no activity for this long
  * @param {number} [options.idleCheckMs] - how often to look for idle clients
+ * @param {number} [options.maxPlayers] - refuse new connections once this many are playing or in line
+ * @param {number} [options.maxConnectionsPerIp] - refuse more connections than this from one address
+ * @param {number} [options.trustProxyHops] - proxies in front of the server (see src/client-ip.js)
  * @returns {{ server: http.Server, io: Server, lobby: Lobby }}
  */
 function createApp({
@@ -26,6 +34,9 @@ function createApp({
   idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS,
   idleCheckMs = Math.min(30 * 1000, idleTimeoutMs),
   gaMeasurementId = null,
+  maxPlayers = DEFAULT_MAX_PLAYERS,
+  maxConnectionsPerIp = DEFAULT_MAX_CONNECTIONS_PER_IP,
+  trustProxyHops = 0,
 }) {
   const app = express();
   app.disable('x-powered-by');
@@ -38,7 +49,7 @@ function createApp({
   app.use(express.static(PUBLIC_DIR));
 
   const server = http.createServer(app);
-  const io = new Server(server);
+  const io = new Server(server, { maxHttpBufferSize: MAX_MESSAGE_BYTES });
 
   const lobby = new Lobby({
     resultDelayMs,
@@ -67,7 +78,24 @@ function createApp({
   }, idleCheckMs);
   idleSweep.unref();
 
+  // Every player gets a state update whenever anyone joins or leaves, so the number of
+  // connections has to be bounded: overall, and per address so one client can't take them all.
+  /** @type {Map<string, number>} address key -> open connections from it */
+  const connectionsByIp = new Map();
+
+  io.use((socket, next) => {
+    if (lobby.size >= maxPlayers) return next(new Error(ConnectError.FULL));
+    const ip = clientIp(socket.handshake, trustProxyHops);
+    if ((connectionsByIp.get(ip) ?? 0) >= maxConnectionsPerIp) {
+      return next(new Error(ConnectError.TOO_MANY));
+    }
+    socket.data.ip = ip;
+    return next();
+  });
+
   io.on('connection', (socket) => {
+    const { ip } = socket.data;
+    connectionsByIp.set(ip, (connectionsByIp.get(ip) ?? 0) + 1);
     markActive(socket);
     lobby.join(socket.id, socket.handshake.auth?.name);
     socket.on(Events.ACTIVE, () => markActive(socket));
@@ -76,6 +104,9 @@ function createApp({
       lobby.move(socket.id, cell);
     });
     socket.on('disconnect', () => {
+      const remaining = (connectionsByIp.get(ip) ?? 1) - 1;
+      if (remaining > 0) connectionsByIp.set(ip, remaining);
+      else connectionsByIp.delete(ip);
       lastActive.delete(socket.id);
       lobby.leave(socket.id);
     });

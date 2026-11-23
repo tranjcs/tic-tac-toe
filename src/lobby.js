@@ -7,6 +7,9 @@ const { Mark, Status } = require('./constants');
 const NAME_PATTERN = /^Player ([1-9]\d{0,5})$/;
 const DEFAULT_TURN_TIMEOUT_MS = 15000;
 const DEFAULT_KICK_AFTER_MS = 15 * 60 * 1000;
+// Every change is sent to every player, so each state carries only the front of the line
+// (plus its length) to keep that from growing with the square of the player count.
+const DEFAULT_LINE_LIMIT = 10;
 
 /**
  * Manages the line of connected players and the single active game.
@@ -28,6 +31,7 @@ class Lobby {
    * @param {number} [options.turnTimeoutMs] - how long a player has to move before forfeiting
    * @param {number} [options.kickAfterMs] - how long a player may keep timing out before removal
    * @param {(id: string) => void} [options.onKick] - called to disconnect a removed player
+   * @param {number} [options.lineLimit] - how many names of the line each state includes
    */
   constructor({
     onChange,
@@ -35,7 +39,9 @@ class Lobby {
     turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS,
     kickAfterMs = DEFAULT_KICK_AFTER_MS,
     onKick = () => {},
+    lineLimit = DEFAULT_LINE_LIMIT,
   }) {
+    this.lineLimit = lineLimit;
     this.onChange = onChange;
     this.onKick = onKick;
     this.kickAfterMs = kickAfterMs;
@@ -63,6 +69,11 @@ class Lobby {
   /** @returns {string[]} ids of all connected players */
   get playerIds() {
     return [...this.queue];
+  }
+
+  /** @returns {number} how many players are connected */
+  get size() {
+    return this.queue.length;
   }
 
   /**
@@ -137,14 +148,15 @@ class Lobby {
     const index = this.queue.indexOf(id);
     if (index === -1) return null;
 
+    const waiting = this.players ? this.queue.slice(2) : this.queue;
     const state = {
       name: this.names.get(id),
       players: this.players
         ? { [Mark.X]: this.names.get(this.players[0]), [Mark.O]: this.names.get(this.players[1]) }
         : null,
-      line: this.queue
-        .filter((queued) => !this.players || !this.players.includes(queued))
-        .map((queued) => this.names.get(queued)),
+      // The front of the line only; lineLength counts everyone in it.
+      line: waiting.slice(0, this.lineLimit).map((queued) => this.names.get(queued)),
+      lineLength: waiting.length,
       playerCount: this.queue.length,
     };
     const mark = this.markOf(id);
