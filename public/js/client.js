@@ -233,10 +233,18 @@
       }
       return li;
     });
+    // The server sends only the front of the line; lineLength counts everyone in it.
+    const total = state.lineLength ?? items.length;
+    if (total > items.length) {
+      const more = document.createElement('li');
+      more.className = 'line__item line__more';
+      more.textContent = `…and ${total - items.length} more`;
+      items.push(more);
+    }
     lineListEl.replaceChildren(...items);
-    lineCountEl.textContent = items.length ? String(items.length) : '';
-    lineListEl.hidden = items.length === 0;
-    lineEmptyEl.hidden = items.length > 0;
+    lineCountEl.textContent = total ? String(total) : '';
+    lineListEl.hidden = total === 0;
+    lineEmptyEl.hidden = total > 0;
   }
 
   // --- Analytics: game events for public/js/analytics.js (a no-op when GA is off) ---
@@ -374,7 +382,18 @@
     hidden: 'Paused — tab inactive',
     idle: 'Paused — no activity. Click anywhere to rejoin.',
     kicked: 'Disconnected for inactivity. Click anywhere to rejoin.',
+    'server-full': 'The game is full right now. Click anywhere to try again.',
+    'too-many-connections': 'Too many tabs open from your network. Close one, then click anywhere to try again.',
   };
+
+  // The server refused the connection (see ConnectError in src/constants.js). Socket.IO
+  // doesn't retry these by itself; wait for the player.
+  socket.on('connect_error', (err) => {
+    if (!PAUSED_TEXT[err.message] || socket.active) return;
+    pausedFor = err.message;
+    statusEl.textContent = PAUSED_TEXT[pausedFor];
+    detailEl.textContent = '';
+  });
 
   socket.on('disconnect', (reason) => {
     // The server only disconnects us for inactivity (no activity reported, or timing out
@@ -455,7 +474,7 @@
   });
   // Rejoining takes a deliberate click or key press, not a stray mouse nudge.
   ['pointerdown', 'keydown'].forEach((type) => {
-    window.addEventListener(type, () => { if (pausedFor === 'idle' || pausedFor === 'kicked') resume(); });
+    window.addEventListener(type, () => { if (pausedFor && pausedFor !== 'hidden') resume(); });
   });
 
   setInterval(() => {

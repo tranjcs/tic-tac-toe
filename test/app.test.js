@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { io: connect } = require('socket.io-client');
 const { createApp } = require('../src/app');
 const { parseMeasurementId } = require('../src/config');
-const { Events, Status, Mark } = require('../src/constants');
+const { Events, Status, Mark, ConnectError } = require('../src/constants');
 
 /** Resolves with the next state event matching `predicate`. */
 function nextState(socket, predicate = () => true) {
@@ -174,5 +174,67 @@ describe('app idle disconnect', () => {
     await new Promise((resolve) => setTimeout(resolve, IDLE_MS * 2));
     clearInterval(heartbeat);
     assert.equal(busy.connected, true);
+  });
+});
+
+describe('app connection limits', () => {
+  const servers = [];
+  const sockets = [];
+
+  /** Starts an app with the given options; resolves with a function that opens a client. */
+  async function start(options) {
+    const { server } = createApp({ resultDelayMs: 50, ...options });
+    servers.push(server);
+    await new Promise((resolve) => server.listen(0, resolve));
+    const url = `http://localhost:${server.address().port}`;
+    return (extraHeaders = {}) => {
+      const socket = connect(url, { forceNew: true, transports: ['websocket'], extraHeaders });
+      sockets.push(socket);
+      return socket;
+    };
+  }
+
+  /** Resolves with 'connected', or the message of the error that refused the connection. */
+  const outcome = (socket) => new Promise((resolve) => {
+    socket.once('connect', () => resolve('connected'));
+    socket.once('connect_error', (err) => resolve(err.message));
+  });
+
+  after(async () => {
+    sockets.forEach((s) => s.disconnect());
+    await Promise.all(servers.map((server) => new Promise((resolve) => server.close(resolve))));
+  });
+
+  it('refuses players beyond the cap, and lets one in when a seat frees up', async () => {
+    const join = await start({ maxPlayers: 2 });
+    const [a, b] = [join(), join()];
+    assert.deepEqual(await Promise.all([outcome(a), outcome(b)]), ['connected', 'connected']);
+    const refused = join();
+    assert.equal(await outcome(refused), ConnectError.FULL);
+    assert.equal(refused.active, false, 'the client does not retry by itself');
+
+    a.disconnect();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(await outcome(join()), 'connected');
+  });
+
+  it('limits connections per address, and frees the slot on disconnect', async () => {
+    const join = await start({ maxConnectionsPerIp: 2 });
+    const [a, b] = [join(), join()];
+    assert.deepEqual(await Promise.all([outcome(a), outcome(b)]), ['connected', 'connected']);
+    assert.equal(await outcome(join()), ConnectError.TOO_MANY);
+
+    b.disconnect();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(await outcome(join()), 'connected');
+  });
+
+  it('behind a proxy, counts the address the proxy appended, not ones the client made up', async () => {
+    const join = await start({ maxConnectionsPerIp: 1, trustProxyHops: 1 });
+    // The proxy appends the real address last; anything before it is client-supplied.
+    const viaProxy = (spoofed, real) => join({ 'x-forwarded-for': `${spoofed}, ${real}` });
+    assert.equal(await outcome(viaProxy('1.1.1.1', '203.0.113.7')), 'connected');
+    assert.equal(await outcome(viaProxy('2.2.2.2', '203.0.113.7')), ConnectError.TOO_MANY);
+    assert.equal(await outcome(viaProxy('1.1.1.1', '198.51.100.9')), 'connected');
   });
 });

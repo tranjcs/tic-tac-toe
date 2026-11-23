@@ -235,7 +235,19 @@ describe('Lobby', () => {
         const state = lobby.stateFor(id);
         assert.deepEqual(state.players, { X: 'Player 1', O: 'Player 2' });
         assert.deepEqual(state.line, ['Player 3', 'Player 4']);
+        assert.equal(state.lineLength, 2);
       }
+    });
+
+    it('sends only the front of a long line, with its full length', () => {
+      const short = new Lobby({ onChange, resultDelayMs: DELAY, lineLimit: 2 });
+      ['a', 'b', 'c', 'd', 'e', 'f'].forEach((id) => short.join(id));
+      const state = short.stateFor('f');
+      assert.deepEqual(state.line, ['Player 3', 'Player 4']);
+      assert.equal(state.lineLength, 4);
+      assert.equal(state.position, 4, 'players past the cut-off still get their position');
+      assert.equal(short.size, 6);
+      short.dispose();
     });
 
     it('winner plays the next in line and the loser joins the back', () => {
